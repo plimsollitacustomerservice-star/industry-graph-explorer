@@ -44,20 +44,15 @@ async function loadData() {
       'data/industries_WHL.json'
     ];
 
-    // Links split into 11 chunks of ~800 each
-    const linkFiles = Array.from({ length: 11 }, (_, i) =>
-      `data/links_${String(i + 1).padStart(2, '0')}.json`
-    );
-
     // Fetch all files in parallel
-    const [indResults, lnkResults] = await Promise.all([
+    const [indResults, linksResult] = await Promise.all([
       Promise.all(industryFiles.map(f => axios.get(f).then(r => r.data))),
-      Promise.all(linkFiles.map(f => axios.get(f).then(r => r.data)))
+      axios.get('data/links.json').then(r => r.data)
     ]);
 
     // Merge arrays
     industriesData = indResults.flat();
-    linksData = lnkResults.flat();
+    linksData = linksResult;
 
     document.getElementById('statsLabel').textContent =
       `${industriesData.length} industries · ${linksData.length} links`;
