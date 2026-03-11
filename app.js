@@ -58,7 +58,9 @@ searchBox.addEventListener('input', () => {
     i.RepCode.toLowerCase().includes(q) ||
     i.NameEnglish.toLowerCase().includes(q) ||
     (i.NameNative && i.NameNative.toLowerCase().includes(q)) ||
-    (i.ATECOPrimary && i.ATECOPrimary.includes(q))
+    (i.ATECOPrimary && i.ATECOPrimary.includes(q)) ||
+    (i.KeywordsIncludeEN && i.KeywordsIncludeEN.toLowerCase().includes(q)) ||
+    (i.ATECOAll && i.ATECOAll.includes(q))
   ).slice(0,25);
 
   if(!matches.length){ resultsDiv.style.display='none'; return; }
@@ -169,6 +171,62 @@ function loadGraph(code){
   showDetails(center, relevantLinks);
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+function escHtml(str){
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const CHAR_THRESHOLD = 140;
+let _toggleCounter = 0;
+
+function collapsible(text, isCode){
+  if(!text || text==='nan' || !text.trim()) return '<span class="empty-val">—</span>';
+  if(text.length <= CHAR_THRESHOLD){
+    return isCode
+      ? `<div class="orbis-box">${escHtml(text)}</div>`
+      : `<span>${escHtml(text)}</span>`;
+  }
+  const id = 'ct' + (++_toggleCounter);
+  const content = isCode
+    ? `<div class="orbis-box">${escHtml(text)}</div>`
+    : escHtml(text);
+  return `<div class="collapsible-wrap">
+    <div id="${id}" class="ctext collapsed">${content}</div>
+    <span class="toggle-btn" onclick="toggleField('${id}',this)">&#9660; Show more</span>
+  </div>`;
+}
+
+function toggleField(id, btn){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const isCol = el.classList.contains('collapsed');
+  el.classList.toggle('collapsed', !isCol);
+  el.classList.toggle('expanded',   isCol);
+  btn.innerHTML = isCol ? '&#9650; Show less' : '&#9660; Show more';
+}
+
+function atecoChips(raw){
+  if(!raw||!raw.trim()) return '<span class="empty-val">—</span>';
+  return raw.split(',').map(c=>c.trim()).filter(Boolean)
+    .map(c=>`<span class="ateco-chip">${escHtml(c)}</span>`).join(' ');
+}
+
+function kwTags(raw){
+  if(!raw||!raw.trim()) return '<span class="empty-val">—</span>';
+  return raw.split(',').map(k=>k.trim()).filter(Boolean)
+    .map(k=>`<span class="kw-tag">${escHtml(k)}</span>`).join(' ');
+}
+
+function row(label, html){
+  return `<div class="d-row"><div class="d-label">${label}</div><div class="d-val">${html}</div></div>`;
+}
+
+function section(title){
+  return `<div class="d-section">${title}</div>`;
+}
+
 // ── Detail panel ───────────────────────────────────────────────────────────
 function showDetails(ind, links){
   const upstream   = links.filter(l => l.ToIndustryCode   === ind.RepCode && l.Direction==='Downstream');
@@ -182,74 +240,60 @@ function showDetails(ind, links){
         const nc = l[codeField];
         const ni = industriesData.find(i => i.RepCode===nc);
         return `<div class="neighbor-item" onclick="loadGraph('${nc}')">
-          ${ni ? ni.NameEnglish : nc}
+          ${ni ? escHtml(ni.NameEnglish) : nc}
           <span class="tag ${cls}">${l.StrengthScore||'\u2013'}</span>
         </div>`;
       }).join('')+
     '</div>';
   }
 
-  function field(label, value){
-    if(!value||value==='nan'||value.trim()==='') return '';
-    return `<div class="field"><span class="label">${label}</span><span class="mono-text">${value}</span></div>`;
-  }
-
-  function longField(label, value){
-    if(!value||value==='nan'||value.trim()==='') return '';
-    return `<div class="field field-block"><span class="label">${label}</span><div class="field-body">${value}</div></div>`;
-  }
-
-  function keywordField(label, value){
-    if(!value||value.trim()==='') return '';
-    const tags = value.split(',').map(k=>k.trim()).filter(Boolean)
-      .map(k=>`<span class="kw-tag">${k}</span>`).join(' ');
-    return `<div class="field field-block"><span class="label">${label}</span><div class="field-body kw-wrap">${tags}</div></div>`;
-  }
-
-  function atecoField(value){
-    if(!value||value.trim()==='') return '';
-    const codes = value.split(',').map(c=>c.trim()).filter(Boolean)
-      .map(c=>`<span class="ateco-tag">${c}</span>`).join(' ');
-    return `<div class="field field-block"><span class="label">ATECO Codes</span><div class="field-body kw-wrap">${codes}</div></div>`;
-  }
-
+  const sc = sectorColor(ind.Sector);
   const priorityClass = {'High':'priority-high','Medium':'priority-med','Low':'priority-low'}[ind.Priority]||'priority-med';
 
   document.getElementById('infoBox').innerHTML = `
-    <div class="detail-header">
-      <div class="detail-repcode">${ind.RepCode}</div>
+
+    <!-- ── Header ── -->
+    <div class="d-header">
+      <div class="d-repcode">${escHtml(ind.RepCode)}</div>
       ${ind.Priority ? `<span class="priority-badge ${priorityClass}">${ind.Priority}</span>` : ''}
     </div>
-
-    <h3 class="detail-title">${ind.NameEnglish}</h3>
-    ${ind.NameNative && ind.NameNative !== ind.NameEnglish
-      ? `<div class="native-name">${ind.NameNative}</div>` : ''}
-
-    <div class="sector-pill" style="background:${sectorColor(ind.Sector)}22;border:1px solid ${sectorColor(ind.Sector)};color:${sectorColor(ind.Sector)};">
-      ${SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013'} &nbsp;\u00b7&nbsp; ${ind.ValueChainStage||'\u2013'}
+    <div class="d-title">${escHtml(ind.NameEnglish)}</div>
+    ${ind.NameNative && ind.NameNative !== ind.NameEnglish && ind.NameNative !== 'nan'
+      ? `<div class="d-native">${escHtml(ind.NameNative)}</div>` : ''}
+    <div class="sector-pill" style="background:${sc}22;border:1px solid ${sc};color:${sc};">
+      ${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013')}&nbsp;&#183;&nbsp;${escHtml(ind.ValueChainStage||'\u2013')}
     </div>
 
-    <div class="section-divider">Classification</div>
-    ${field('Primary ATECO', ind.ATECOPrimary)}
-    ${atecoField(ind.ATECOAll)}
+    <!-- ── Classification ── -->
+    ${section('&#128196; Classification')}
+    ${row('RepCode',         `<code>${escHtml(ind.RepCode)}</code>`)}
+    ${row('Priority',        `<span class="priority-badge ${priorityClass}">${escHtml(ind.Priority||'—')}</span>`)}
+    ${row('Sector',          `<span class="sector-badge" style="background:${sc}22;border:1px solid ${sc};color:${sc};">${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'—')}</span>`)}
+    ${row('Value chain',     escHtml(ind.ValueChainStage||'—'))}
+    ${row('ATECO primary',   `<span class="ateco-chip">${escHtml(ind.ATECOPrimary||'—')}</span>`)}
+    ${row('ATECO all',       atecoChips(ind.ATECOAll))}
 
-    <div class="section-divider">Definition</div>
-    ${longField('Report Definition', ind.ReportDefinitionEN)}
-    ${longField('Marketing Definition', ind.MarketingDefinitionEN)}
+    <!-- ── Definition ── -->
+    ${section('&#128214; Definition')}
+    ${row('Report (EN)',     collapsible(ind.ReportDefinitionEN, false))}
+    ${row('Marketing (EN)', collapsible(ind.MarketingDefinitionEN, false))}
 
-    <div class="section-divider">Search Intelligence</div>
-    ${keywordField('Keywords (EN)', ind.KeywordsIncludeEN)}
-    ${keywordField('Keywords (IT)', ind.KeywordsIncludeIT)}
-    ${longField('Orbis Boolean Search', ind.OrbisBoolean)}
+    <!-- ── Search Intelligence ── -->
+    ${section('&#128269; Search Intelligence')}
+    ${row('Keywords (EN)',   kwTags(ind.KeywordsIncludeEN))}
+    ${row('Keywords (IT)',   kwTags(ind.KeywordsIncludeIT))}
+    ${row('Orbis Boolean',   collapsible(ind.OrbisBoolean, true))}
 
-    <div class="section-divider">Associations &amp; Boundaries</div>
-    ${longField('Trade Associations', ind.TradeAssociations)}
-    ${keywordField('Adjacent Industries', ind.AdjacentIndustries)}
+    <!-- ── Associations ── -->
+    ${section('&#127968; Associations & Boundaries')}
+    ${row('Trade assoc.',   collapsible(ind.TradeAssociations, false))}
+    ${row('Adjacent',       kwTags(ind.AdjacentIndustries))}
 
-    <div class="section-divider">Value Chain Links</div>
-    ${neighborList(upstream,   'FromIndustryCode', '\u2b06 Upstream Suppliers',   'dir-upstream')}
-    ${neighborList(downstream, 'ToIndustryCode',   '\u2b07 Downstream Customers', 'dir-downstream')}
-    ${neighborList(peers,      'ToIndustryCode',   '\u2194 Peer / Adjacent',      'dir-peer')}
+    <!-- ── Value chain links ── -->
+    ${section('&#128279; Value Chain Links')}
+    ${neighborList(upstream,   'FromIndustryCode', '&#11014; Upstream Suppliers',   'dir-upstream')}
+    ${neighborList(downstream, 'ToIndustryCode',   '&#11015; Downstream Customers', 'dir-downstream')}
+    ${neighborList(peers,      'ToIndustryCode',   '&#8596; Peer / Adjacent',       'dir-peer')}
     ${!upstream.length && !downstream.length && !peers.length
       ? '<div class="no-links">No linked industries found for current filters.</div>' : ''}
   `;
