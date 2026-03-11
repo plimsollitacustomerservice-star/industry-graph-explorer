@@ -28,7 +28,7 @@ async function loadData(){
       'data/industries_MAN_2.json','data/industries_RET.json',
       'data/industries_SER_1.json','data/industries_SER_2.json',
       'data/industries_SER_3.json','data/industries_SER_4.json',
-      'data/industries_WHL.json'
+      'data/industries_SER_5.json','data/industries_WHL.json'
     ];
     const [indResults, linksResult] = await Promise.all([
       Promise.all(industryFiles.map(f => axios.get(f).then(r => r.data))),
