@@ -1,0 +1,29 @@
+{
+  "industryFiles": [
+    "industries_AGR.json",
+    "industries_CON.json",
+    "industries_EDU.json",
+    "industries_ENE.json",
+    "industries_FIN.json",
+    "industries_HEA.json",
+    "industries_ICT.json",
+    "industries_MAN_1.json",
+    "industries_MAN_2.json",
+    "industries_RET.json",
+    "industries_SER_1.json",
+    "industries_SER_2.json",
+    "industries_SER_3.json",
+    "industries_SER_4.json",
+    "industries_SER_5.json",
+    "industries_SER_6.json",
+    "industries_WHL.json"
+  ],
+  "linkFiles": [
+    "links_1.json",
+    "links_2.json",
+    "links_3.json",
+    "links_4.json"
+  ],
+  "totalIndustries": 5862,
+  "totalLinks": 12000
+}
