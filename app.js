@@ -25,19 +25,47 @@ function sectorColor(code) {
   return SECTOR_COLORS[code] || SECTOR_COLORS.default;
 }
 
-// ── Load data ──
+// ── Load data (split files) ──
 async function loadData() {
   try {
-    const [indRes, lnkRes] = await Promise.all([
-      axios.get('data/industries.json'),
-      axios.get('data/links.json')
+    // Industry files split by sector (SER split into two halves)
+    const industryFiles = [
+      'data/industries_AGR.json',
+      'data/industries_CON.json',
+      'data/industries_EDU.json',
+      'data/industries_ENE.json',
+      'data/industries_FIN.json',
+      'data/industries_HEA.json',
+      'data/industries_ICT.json',
+      'data/industries_MAN.json',
+      'data/industries_RET.json',
+      'data/industries_SER_1.json',
+      'data/industries_SER_2.json',
+      'data/industries_WHL.json'
+    ];
+
+    // Links split into 11 chunks of ~800 each
+    const linkFiles = Array.from({ length: 11 }, (_, i) =>
+      `data/links_${String(i + 1).padStart(2, '0')}.json`
+    );
+
+    // Fetch all files in parallel
+    const [indResults, lnkResults] = await Promise.all([
+      Promise.all(industryFiles.map(f => axios.get(f).then(r => r.data))),
+      Promise.all(linkFiles.map(f => axios.get(f).then(r => r.data)))
     ]);
-    industriesData = indRes.data;
-    linksData = lnkRes.data;
+
+    // Merge arrays
+    industriesData = indResults.flat();
+    linksData = lnkResults.flat();
+
     document.getElementById('statsLabel').textContent =
       `${industriesData.length} industries · ${linksData.length} links`;
+
+    console.log(`✓ Loaded ${industriesData.length} industries, ${linksData.length} links`);
   } catch (e) {
     console.error('Failed to load data files', e);
+    document.getElementById('statsLabel').textContent = 'Error loading data – check console';
   }
 }
 
