@@ -17,31 +17,32 @@ const SECTOR_LABELS = {
 };
 function sectorColor(code){ return SECTOR_COLORS[code]||SECTOR_COLORS.default; }
 
-// ── Load data ──────────────────────────────────────────────────────────────
+// ── Load data via manifest.json ──────────────────────────────────────
 async function loadData(){
+  const statsEl = document.getElementById('statsLabel');
   try {
-    const industryFiles = [
-      'data/industries_AGR.json','data/industries_CON.json',
-      'data/industries_EDU.json','data/industries_ENE.json',
-      'data/industries_FIN.json','data/industries_HEA.json',
-      'data/industries_ICT.json','data/industries_MAN_1.json',
-      'data/industries_MAN_2.json','data/industries_RET.json',
-      'data/industries_SER_1.json','data/industries_SER_2.json',
-      'data/industries_SER_3.json','data/industries_SER_4.json',
-      'data/industries_SER_5.json','data/industries_WHL.json'
-    ];
-    const [indResults, linksResult] = await Promise.all([
+    statsEl.textContent = 'Loading manifest...';
+    const manifest = await axios.get('data/manifest.json').then(r => r.data);
+
+    const industryFiles = manifest.industryFiles.map(f => 'data/' + f);
+    const linkFiles     = manifest.linkFiles.map(f => 'data/' + f);
+
+    statsEl.textContent = `Loading ${industryFiles.length} industry files…`;
+
+    const [indResults, linkResults] = await Promise.all([
       Promise.all(industryFiles.map(f => axios.get(f).then(r => r.data))),
-      axios.get('data/links.json').then(r => r.data)
+      Promise.all(linkFiles.map(f => axios.get(f).then(r => r.data)))
     ]);
+
     industriesData = indResults.flat();
-    linksData = linksResult;
-    document.getElementById('statsLabel').textContent =
+    linksData      = linkResults.flat();
+
+    statsEl.textContent =
       `${industriesData.length.toLocaleString()} industries \u00b7 ${linksData.length.toLocaleString()} links`;
     console.log(`\u2713 Loaded ${industriesData.length} industries, ${linksData.length} links`);
   } catch(e){
     console.error('Failed to load data files', e);
-    document.getElementById('statsLabel').textContent = 'Error loading data \u2013 check console';
+    statsEl.textContent = 'Error loading data \u2013 check console';
   }
 }
 
@@ -121,7 +122,7 @@ function loadGraph(code){
       font:{ color: isCenter ? '#fff' : '#222', size: isCenter ? 14 : 12 },
       size: isCenter ? 22 : 13,
       borderWidth: isCenter ? 3 : 1,
-      title:`<b>${ind.NameEnglish}</b><br>Sector: ${SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013'}<br>Stage: ${ind.ValueChainStage||'\u2013'}<br>ATECO: ${ind.ATECOPrimary||'\u2013'}`
+      title:`<b>${ind.NameEnglish}</b><br>Sector: ${SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013'}<br>ATECO: ${ind.ATECOPrimary||'\u2013'}`
     });
   });
 
@@ -251,8 +252,6 @@ function showDetails(ind, links){
   const priorityClass = {'High':'priority-high','Medium':'priority-med','Low':'priority-low'}[ind.Priority]||'priority-med';
 
   document.getElementById('infoBox').innerHTML = `
-
-    <!-- ── Header ── -->
     <div class="d-header">
       <div class="d-repcode">${escHtml(ind.RepCode)}</div>
       ${ind.Priority ? `<span class="priority-badge ${priorityClass}">${ind.Priority}</span>` : ''}
@@ -261,41 +260,30 @@ function showDetails(ind, links){
     ${ind.NameNative && ind.NameNative !== ind.NameEnglish && ind.NameNative !== 'nan'
       ? `<div class="d-native">${escHtml(ind.NameNative)}</div>` : ''}
     <div class="sector-pill" style="background:${sc}22;border:1px solid ${sc};color:${sc};">
-      ${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013')}&nbsp;&#183;&nbsp;${escHtml(ind.ValueChainStage||'\u2013')}
+      ${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013')}
     </div>
-
-    <!-- ── Classification ── -->
     ${section('&#128196; Classification')}
     ${row('RepCode',         `<code>${escHtml(ind.RepCode)}</code>`)}
     ${row('Priority',        `<span class="priority-badge ${priorityClass}">${escHtml(ind.Priority||'—')}</span>`)}
     ${row('Sector',          `<span class="sector-badge" style="background:${sc}22;border:1px solid ${sc};color:${sc};">${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'—')}</span>`)}
-    ${row('Value chain',     escHtml(ind.ValueChainStage||'—'))}
     ${row('ATECO primary',   `<span class="ateco-chip">${escHtml(ind.ATECOPrimary||'—')}</span>`)}
     ${row('ATECO all',       atecoChips(ind.ATECOAll))}
-
-    <!-- ── Definition ── -->
     ${section('&#128214; Definition')}
     ${row('Report (EN)',     collapsible(ind.ReportDefinitionEN, false))}
     ${row('Marketing (EN)', collapsible(ind.MarketingDefinitionEN, false))}
-
-    <!-- ── Search Intelligence ── -->
     ${section('&#128269; Search Intelligence')}
     ${row('Keywords (EN)',   kwTags(ind.KeywordsIncludeEN))}
     ${row('Keywords (IT)',   kwTags(ind.KeywordsIncludeIT))}
     ${row('Orbis Boolean',   collapsible(ind.OrbisBoolean, true))}
-
-    <!-- ── Associations ── -->
-    ${section('&#127968; Associations & Boundaries')}
+    ${section('&#127968; Associations')}
     ${row('Trade assoc.',   collapsible(ind.TradeAssociations, false))}
     ${row('Adjacent',       kwTags(ind.AdjacentIndustries))}
-
-    <!-- ── Value chain links ── -->
     ${section('&#128279; Value Chain Links')}
-    ${neighborList(upstream,   'FromIndustryCode', '&#11014; Upstream Suppliers',   'dir-upstream')}
-    ${neighborList(downstream, 'ToIndustryCode',   '&#11015; Downstream Customers', 'dir-downstream')}
-    ${neighborList(peers,      'ToIndustryCode',   '&#8596; Peer / Adjacent',       'dir-peer')}
+    ${neighborList(upstream,   'FromIndustryCode', '&#11014; Upstream',   'dir-upstream')}
+    ${neighborList(downstream, 'ToIndustryCode',   '&#11015; Downstream', 'dir-downstream')}
+    ${neighborList(peers,      'ToIndustryCode',   '&#8596; Peers',       'dir-peer')}
     ${!upstream.length && !downstream.length && !peers.length
-      ? '<div class="no-links">No linked industries found for current filters.</div>' : ''}
+      ? '<div class="no-links">No linked industries in current filters.</div>' : ''}
   `;
 }
 
