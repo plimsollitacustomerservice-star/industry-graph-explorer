@@ -31,6 +31,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/industries_*.json data/links_*.json
+          git add data/industries_*.json data/links_*.json data/manifest.json
           git diff --cached --quiet || git commit -m "data: regenerate JSON files from XLSX [skip ci]"
           git push
