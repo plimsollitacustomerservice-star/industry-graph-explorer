@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Industry Graph Explorer – Plimsoll Italia</title>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f0f2f5; }
+
+    /* ── Top bar ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: #1a2e4a;
+      color: #fff;
+      position: relative;
+      z-index: 100;
+    }
+    #topbar h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+    #searchWrap { position: relative; flex: 1; max-width: 420px; }
+    #searchBox {
+      width: 100%;
+      padding: 7px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    #results {
+      display: none;
+      position: absolute;
+      top: 34px; left: 0;
+      width: 100%;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 0 0 4px 4px;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 200;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+    #results div {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #222;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    #results div:hover { background: #e8f0fe; }
+    #results .res-code { font-weight: bold; color: #1a2e4a; }
+    #results .res-name { color: #555; }
+
+    /* ── Filters bar ── */
+    #filterbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 6px 16px;
+      background: #253d5e;
+      color: #cfd8e3;
+      font-size: 13px;
+    }
+    #filterbar label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    #filterbar select {
+      padding: 3px 6px;
+      border-radius: 3px;
+      border: 1px solid #4a6480;
+      background: #1a2e4a;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    /* ── Main area ── */
+    #main {
+      display: flex;
+      height: calc(100vh - 88px);
+    }
+
+    /* ── Side panel ── */
+    #sidebar {
+      width: 300px;
+      min-width: 220px;
+      background: #fff;
+      border-right: 1px solid #dde;
+      padding: 14px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+    #sidebar h2 { font-size: 14px; margin: 0 0 10px; color: #1a2e4a; }
+    #infoBox { color: #444; line-height: 1.6; }
+    #infoBox .field { margin-bottom: 6px; }
+    #infoBox .label { font-weight: bold; color: #1a2e4a; }
+    #infoBox .neighbors { margin-top: 12px; }
+    #infoBox .neighbor-item {
+      padding: 5px 8px;
+      margin: 3px 0;
+      background: #f5f7ff;
+      border-radius: 3px;
+      cursor: pointer;
+      border-left: 3px solid #1a2e4a;
+    }
+    #infoBox .neighbor-item:hover { background: #e8f0fe; }
+    #infoBox .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: bold;
+      margin-right: 4px;
+    }
+    .dir-downstream { background: #d4edda; color: #155724; }
+    .dir-upstream   { background: #fff3cd; color: #856404; }
+    .dir-peer       { background: #d1ecf1; color: #0c5460; }
+
+    /* ── Graph canvas ── */
+    #network {
+      flex: 1;
+      background: #fafbff;
+    }
+
+    /* ── Legend ── */
+    #legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid #dde;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      z-index: 50;
+    }
+    #legend h3 { margin: 0 0 6px; font-size: 12px; color: #1a2e4a; }
+    .leg-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+    .leg-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+    /* ── Empty state ── */
+    #emptyState {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #aaa;
+      pointer-events: none;
+    }
+    #emptyState h2 { font-size: 22px; color: #ccc; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>🔗 Industry Graph Explorer</h1>
+  <div id="searchWrap">
+    <input id="searchBox" type="text" placeholder="Search by industry name or code…" autocomplete="off" />
+    <div id="results"></div>
+  </div>
+  <span id="statsLabel" style="font-size:12px;opacity:.7;"></span>
+</div>
+
+<div id="filterbar">
+  <label>Direction:
+    <select id="filterDir">
+      <option value="all">All</option>
+      <option value="Downstream">Downstream only</option>
+      <option value="Upstream">Upstream only</option>
+      <option value="Peer">Peer only</option>
+    </select>
+  </label>
+  <label>Min strength:
+    <select id="filterStr">
+      <option value="1">1+</option>
+      <option value="2">2+</option>
+      <option value="3">3+</option>
+      <option value="4">4+</option>
+      <option value="5">5 only</option>
+    </select>
+  </label>
+  <label>Layout:
+    <select id="layoutSel">
+      <option value="physics">Force-directed</option>
+      <option value="hierarchical">Hierarchical</option>
+    </select>
+  </label>
+  <span id="currentIndustry" style="margin-left:auto;font-weight:bold;color:#a0c4ff;"></span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <h2>Industry Details</h2>
+    <div id="infoBox"><em style="color:#aaa">Select an industry from the search to begin.</em></div>
+  </div>
+  <div id="network">
+    <div id="emptyState">
+      <h2>🏭</h2>
+      <p>Search for an industry above<br/>to explore its supply chain connections.</p>
+    </div>
+  </div>
+</div>
+
+<div id="legend">
+  <h3>Edge direction</h3>
+  <div class="leg-row"><span class="tag dir-downstream">▶</span> Downstream (supplies to)</div>
+  <div class="leg-row"><span class="tag dir-upstream">◀</span> Upstream (supplied by)</div>
+  <div class="leg-row"><span class="tag dir-peer">↔</span> Peer / adjacent</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

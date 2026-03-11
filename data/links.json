@@ -1,0 +1,20 @@
+[
+  { "FromIndustryCode": "PHR003", "ToIndustryCode": "MED002", "Direction": "Downstream", "StrengthScore": 5, "LinkType": "Supplies pharmaceutical products to distributors" },
+  { "FromIndustryCode": "MED002", "ToIndustryCode": "LAB001", "Direction": "Downstream", "StrengthScore": 4, "LinkType": "Supplies medical equipment to diagnostic labs" },
+  { "FromIndustryCode": "PHR003", "ToIndustryCode": "LAB001", "Direction": "Downstream", "StrengthScore": 3, "LinkType": "Supplies reagents and consumables to labs" },
+  { "FromIndustryCode": "CHE015", "ToIndustryCode": "PHR003", "Direction": "Downstream", "StrengthScore": 5, "LinkType": "Supplies chemical raw materials to pharma" },
+  { "FromIndustryCode": "CHE015", "ToIndustryCode": "DIS004", "Direction": "Downstream", "StrengthScore": 5, "LinkType": "Supplies chemical base to disinfectant manufacturers" },
+  { "FromIndustryCode": "DIS004", "ToIndustryCode": "LAB001", "Direction": "Downstream", "StrengthScore": 3, "LinkType": "Supplies disinfectants to medical labs" },
+  { "FromIndustryCode": "DIS004", "ToIndustryCode": "MED002", "Direction": "Downstream", "StrengthScore": 2, "LinkType": "Supplies disinfectants via medical equipment distributors" },
+  { "FromIndustryCode": "DSP005", "ToIndustryCode": "LAB001", "Direction": "Downstream", "StrengthScore": 3, "LinkType": "Supplies disposable consumables to labs" },
+  { "FromIndustryCode": "DSP005", "ToIndustryCode": "MED002", "Direction": "Downstream", "StrengthScore": 2, "LinkType": "Supplies disposable goods via medical distribution" },
+  { "FromIndustryCode": "ALF013", "ToIndustryCode": "ALU012", "Direction": "Downstream", "StrengthScore": 4, "LinkType": "Supplies fabricated aluminium to die-casters" },
+  { "FromIndustryCode": "ALU012", "ToIndustryCode": "DPL008", "Direction": "Downstream", "StrengthScore": 3, "LinkType": "Supplies die-cast aluminium components to panel makers" },
+  { "FromIndustryCode": "DIT007", "ToIndustryCode": "DIG006", "Direction": "Downstream", "StrengthScore": 4, "LinkType": "Supplies digital technology components to signage manufacturers" },
+  { "FromIndustryCode": "DPL008", "ToIndustryCode": "DIG006", "Direction": "Downstream", "StrengthScore": 2, "LinkType": "Supplies distribution panels to digital signage installations" },
+  { "FromIndustryCode": "DIG006", "ToIndustryCode": "DSC009", "Direction": "Downstream", "StrengthScore": 2, "LinkType": "Supplies signage systems to discount retailers" },
+  { "FromIndustryCode": "WMG014", "ToIndustryCode": "DSC009", "Direction": "Downstream", "StrengthScore": 1, "LinkType": "Distributes print media to retail outlets" },
+  { "FromIndustryCode": "DLR010", "ToIndustryCode": "DIS011", "Direction": "Peer", "StrengthScore": 3, "LinkType": "Adjacent: distance learning platforms used for disability training" },
+  { "FromIndustryCode": "DIT007", "ToIndustryCode": "DLR010", "Direction": "Downstream", "StrengthScore": 4, "LinkType": "Supplies digital technology infrastructure to distance learning" },
+  { "FromIndustryCode": "MED002", "ToIndustryCode": "DIS011", "Direction": "Downstream", "StrengthScore": 3, "LinkType": "Supplies assistive medical devices to disability sector" }
+]
