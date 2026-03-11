@@ -1,17 +1,392 @@
 [
-  { "RepCode": "LAB001", "NameEnglish": "Medical Diagnostics Centres", "NameNative": "Laboratori Analisi Cliniche", "Sector": "HEA", "ValueChainStage": "Services", "ATECOPrimary": "8610", "Description": "Clinical analysis laboratories performing laboratory testing on patient samples for disease diagnosis." },
-  { "RepCode": "MED002", "NameEnglish": "Distribution of Medical Equipment", "NameNative": "Distribuzione Apparecchiature Mediche", "Sector": "WHL", "ValueChainStage": "Distribution", "ATECOPrimary": "4646", "Description": "Wholesale supply, logistics and commercialisation of medical devices and surgical equipment." },
-  { "RepCode": "PHR003", "NameEnglish": "Pharmaceutical Manufacturers", "NameNative": "Produttori Farmaceutici", "Sector": "MAN", "ValueChainStage": "Final Manufacturing", "ATECOPrimary": "2120", "Description": "Manufacturing and promotion of pharmaceutical products and medicinal articles." },
-  { "RepCode": "DIS004", "NameEnglish": "Disinfectant Manufacturers", "NameNative": "Produttori di Disinfettanti", "Sector": "MAN", "ValueChainStage": "Processing", "ATECOPrimary": "2020", "Description": "Production of chemical preparations to eliminate microorganisms on surfaces and environments." },
-  { "RepCode": "DSP005", "NameEnglish": "Disposable Goods", "NameNative": "Beni Monouso", "Sector": "MAN", "ValueChainStage": "Final Manufacturing", "ATECOPrimary": "2222", "Description": "Manufacturing of single-use products from plastics, paper and compostable materials." },
-  { "RepCode": "DIG006", "NameEnglish": "Digital Signage", "NameNative": "Segnaletica Digitale", "Sector": "MAN", "ValueChainStage": "Final Manufacturing", "ATECOPrimary": "2620", "Description": "Manufacturing and assembly of electronic display systems for public information and advertising." },
-  { "RepCode": "DIT007", "NameEnglish": "Digital Technology", "NameNative": "Tecnologia Digitale", "Sector": "ICT", "ValueChainStage": "Components", "ATECOPrimary": "2812", "Description": "Development, production and integration of advanced digital manufacturing technologies." },
-  { "RepCode": "DPL008", "NameEnglish": "Distribution Panels", "NameNative": "Quadri di Distribuzione", "Sector": "MAN", "ValueChainStage": "Components", "ATECOPrimary": "2711", "Description": "Design, assembly and production of electrical distribution equipment." },
-  { "RepCode": "DSC009", "NameEnglish": "Discount Stores", "NameNative": "Negozi di Sconto", "Sector": "RET", "ValueChainStage": "Retail", "ATECOPrimary": "4711", "Description": "Retail enterprises selling consumer goods at reduced prices through high-volume business models." },
-  { "RepCode": "DLR010", "NameEnglish": "Distance Learning", "NameNative": "Apprendimento a Distanza", "Sector": "EDU", "ValueChainStage": "Services", "ATECOPrimary": "8559", "Description": "Educational services delivered remotely via digital platforms." },
-  { "RepCode": "DIS011", "NameEnglish": "Disability Special Needs", "NameNative": "Disabilità e Bisogni Speciali", "Sector": "SER", "ValueChainStage": "Services", "ATECOPrimary": "8810", "Description": "Organisations providing support services, assistive technologies and rehabilitation for persons with disabilities." },
-  { "RepCode": "ALU012", "NameEnglish": "Aluminium Die-Casting", "NameNative": "Pressofusione Alluminio", "Sector": "MAN", "ValueChainStage": "Components", "ATECOPrimary": "2442", "Description": "Metal casting process using aluminium alloys under high pressure into mold cavities." },
-  { "RepCode": "ALF013", "NameEnglish": "Aluminium Fabricators", "NameNative": "Fabbricanti di Alluminio", "Sector": "MAN", "ValueChainStage": "Processing", "ATECOPrimary": "2442", "Description": "Fabrication and processing of aluminium products including extrusions and structural components." },
-  { "RepCode": "WMG014", "NameEnglish": "Wholesale of Magazines and Newspapers", "NameNative": "Commercio Ingrosso Riviste e Giornali", "Sector": "WHL", "ValueChainStage": "Distribution", "ATECOPrimary": "4640", "Description": "Wholesale distribution of printed media including magazines, newspapers and periodicals." },
-  { "RepCode": "CHE015", "NameEnglish": "Chemical Raw Materials", "NameNative": "Materie Prime Chimiche", "Sector": "MAN", "ValueChainStage": "Raw Materials", "ATECOPrimary": "2010", "Description": "Production and supply of basic chemical substances used in downstream manufacturing." }
+  {
+    "RepCode": "1",
+    "NameEnglish": "MEDICAL DIAGNOSTICS CENTRES",
+    "NameNative": "LABORATORI ANALISI CLINICHE",
+    "Sector": "HEA",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "8610",
+    "Directory": "Healthcare / Diagnostics",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "2",
+    "NameEnglish": "Activities of sales representatives of pharmaceutical goods",
+    "NameNative": "Attività di informazione scientifica",
+    "Sector": "HEA",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "2110",
+    "Directory": "Healthcare / Pharma",
+    "Priority": "Low"
+  },
+  {
+    "RepCode": "3",
+    "NameEnglish": "Digital Signage",
+    "NameNative": "Segnaletica digitale",
+    "Sector": "ICT",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "2620",
+    "Directory": "ICT / Media",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "4",
+    "NameEnglish": "Digital Technology",
+    "NameNative": "Tecnologia digitale",
+    "Sector": "ICT",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "2812",
+    "Directory": "ICT / Manufacturing",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "5",
+    "NameEnglish": "Disability & Special Needs",
+    "NameNative": "Disabilità e bisogni speciali",
+    "Sector": "HEA",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "869010",
+    "Directory": "Healthcare / Social Services",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "6",
+    "NameEnglish": "Discount Stores",
+    "NameNative": "Negozi di sconto",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "4711",
+    "Directory": "Retail / Food & General",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "7",
+    "NameEnglish": "Disinfectant Manufacturers",
+    "NameNative": "Produttori di disinfettanti",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "202000",
+    "Directory": "Manufacturing / Chemicals",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "8",
+    "NameEnglish": "DISPOSABLE GOODS",
+    "NameNative": "BENI MONOUSO",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "1712",
+    "Directory": "Manufacturing / Packaging",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "9",
+    "NameEnglish": "DISTANCE LEARNING",
+    "NameNative": "APPRENDIMENTO A DISTANZA",
+    "Sector": "EDU",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "855902",
+    "Directory": "Education / Online",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "10",
+    "NameEnglish": "Other support activities for cultural heritage",
+    "NameNative": "Altre attività di supporto al patrimonio culturale",
+    "Sector": "SER",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "9102",
+    "Directory": "Services / Cultural",
+    "Priority": "Low"
+  },
+  {
+    "RepCode": "11",
+    "NameEnglish": "DISTRIBUTION OF MEDICAL EQUIPMENT",
+    "NameNative": "DISTRIBUZIONE DI APPARECCHIATURE MEDICHE",
+    "Sector": "HEA",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "1476",
+    "Directory": "Healthcare / Distribution",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "12",
+    "NameEnglish": "DISTRIBUTION PANELS",
+    "NameNative": "QUADRI DI DISTRIBUZIONE",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2711",
+    "Directory": "Manufacturing / Electrical",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "13",
+    "NameEnglish": "District Heaters",
+    "NameNative": "Teleriscaldatori",
+    "Sector": "ENE",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "2825",
+    "Directory": "Energy / Heating",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "14",
+    "NameEnglish": "DISTRICT HEATING",
+    "NameNative": "TELERISCALDAMENTO",
+    "Sector": "ENE",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "3530",
+    "Directory": "Energy / Heating",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "15",
+    "NameEnglish": "Diversified Communication",
+    "NameNative": "Comunicazione diversificata",
+    "Sector": "ICT",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "5811",
+    "Directory": "ICT / Media",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "16",
+    "NameEnglish": "Diversified Manufacturers",
+    "NameNative": "Produttori diversificati",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2511",
+    "Directory": "Manufacturing / General",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "17",
+    "NameEnglish": "DIVIDING WALL MANUFACTURERS",
+    "NameNative": "PRODUTTORI DI PARETI DIVISORIE",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2362",
+    "Directory": "Manufacturing / Construction",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "18",
+    "NameEnglish": "Diving Equipment",
+    "NameNative": "Attrezzatura subacquea",
+    "Sector": "SER",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "3230",
+    "Directory": "Leisure / Sports",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "19",
+    "NameEnglish": "Other telecommunication activities n.e.c.",
+    "NameNative": "Altre attività di telecomunicazioni",
+    "Sector": "ICT",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "619090",
+    "Directory": "ICT / Telecom",
+    "Priority": "Low"
+  },
+  {
+    "RepCode": "20",
+    "NameEnglish": "DIVING EQUIPMENT & SUPPLIES",
+    "NameNative": "ATTREZZATURA E FORNITURE PER IMMERSIONI",
+    "Sector": "SER",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "4764",
+    "Directory": "Leisure / Sports",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "21",
+    "NameEnglish": "DIY Markets",
+    "NameNative": "Mercatini fai da te",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "4752",
+    "Directory": "Retail / Home Improvement",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "22",
+    "NameEnglish": "DIY Retailers",
+    "NameNative": "Rivenditori di fai da te",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "4752",
+    "Directory": "Retail / Home Improvement",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "23",
+    "NameEnglish": "DIY Wholesalers & Distributors",
+    "NameNative": "Grossisti e distributori di fai da te",
+    "Sector": "WHL",
+    "ValueChainStage": "Distribution",
+    "ATECOPrimary": "4673",
+    "Directory": "Wholesale / Home Improvement",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "24",
+    "NameEnglish": "DO IT YOURSELF WHOLESALERS",
+    "NameNative": "GROSSISTI FAI DA TE",
+    "Sector": "WHL",
+    "ValueChainStage": "Distribution",
+    "ATECOPrimary": "4673",
+    "Directory": "Wholesale / Home Improvement",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "25",
+    "NameEnglish": "DOCUMENT ARCHIVING",
+    "NameNative": "ARCHIVIAZIONE DOCUMENTI",
+    "Sector": "SER",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "8299",
+    "Directory": "Services / Document Management",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "26",
+    "NameEnglish": "Document Archiving and Shredding",
+    "NameNative": "Archiviazione e distruzione di documenti",
+    "Sector": "SER",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "3811",
+    "Directory": "Services / Document Management",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "27",
+    "NameEnglish": "DOCUMENT IMAGE PROCESSING",
+    "NameNative": "ELABORAZIONE IMMAGINI DOCUMENTALI",
+    "Sector": "SER",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "6201",
+    "Directory": "Services / Document Management",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "28",
+    "NameEnglish": "Document Management Solutions",
+    "NameNative": "Soluzioni di gestione dei documenti",
+    "Sector": "SER",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "6311",
+    "Directory": "Services / Document Management",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "118",
+    "NameEnglish": "Electrical Appliance & Consumer Electronics Retailers",
+    "NameNative": "Rivenditori di elettrodomestici ed elettronica di consumo",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "479110",
+    "Directory": "Retail / Electronics",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "119",
+    "NameEnglish": "ELECTRICAL DISTRIBUTION EQUIPMENT",
+    "NameNative": "APPARECCHIATURE DI DISTRIBUZIONE ELETTRICA",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2712",
+    "Directory": "Manufacturing / Electrical",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "126",
+    "NameEnglish": "Electrical Equipment Retailers",
+    "NameNative": "Rivenditori di apparecchiature elettriche",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "474100",
+    "Directory": "Retail / Electronics",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "127",
+    "NameEnglish": "Electrical Equipment Wholesalers",
+    "NameNative": "Grossisti di apparecchiature elettriche",
+    "Sector": "WHL",
+    "ValueChainStage": "Distribution",
+    "ATECOPrimary": "2712",
+    "Directory": "Wholesale / Electronics",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "128",
+    "NameEnglish": "electrical household appliances",
+    "NameNative": "elettrodomestici",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2751",
+    "Directory": "Manufacturing / Electrical",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "132",
+    "NameEnglish": "Electrical Retailers",
+    "NameNative": "Rivenditori di materiale elettrico",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "4743",
+    "Directory": "Retail / Electronics",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "DISI",
+    "NameEnglish": "Disinfectant Manufacturers",
+    "NameNative": "Produttori di disinfettanti",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2020",
+    "Directory": "Manufacturing / Chemicals",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "DICO",
+    "NameEnglish": "Diversified Communication",
+    "NameNative": "Comunicazione diversificata",
+    "Sector": "ICT",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "5811",
+    "Directory": "ICT / Media",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "DIVM",
+    "NameEnglish": "Diversified Manufacturers",
+    "NameNative": "Produttori diversificati",
+    "Sector": "MAN",
+    "ValueChainStage": "Final Manufacturing",
+    "ATECOPrimary": "2511",
+    "Directory": "Manufacturing / General",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "WEEE",
+    "NameEnglish": "Electrical Equipment Recycling",
+    "NameNative": "Riciclo apparecchiature elettriche",
+    "Sector": "ENE",
+    "ValueChainStage": "Services",
+    "ATECOPrimary": "3832",
+    "Directory": "Environment / Recycling",
+    "Priority": "Medium"
+  },
+  {
+    "RepCode": "ELERG",
+    "NameEnglish": "Electrical Equipment Retailers",
+    "NameNative": "Rivenditori di apparecchiature elettriche",
+    "Sector": "RET",
+    "ValueChainStage": "Retail",
+    "ATECOPrimary": "4741",
+    "Directory": "Retail / Electronics",
+    "Priority": "Medium"
+  }
 ]
