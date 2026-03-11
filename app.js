@@ -5,86 +5,69 @@ let linksData = [];
 let networkInstance = null;
 let currentCode = null;
 
-// Colour palette per sector code
 const SECTOR_COLORS = {
-  MAN: '#e06c75',
-  WHL: '#e5c07b',
-  RET: '#98c379',
-  HEA: '#56b6c2',
-  ICT: '#61afef',
-  AGR: '#a8d8a8',
-  FIN: '#c678dd',
-  ENE: '#d19a66',
-  CON: '#be5046',
-  EDU: '#4db6ac',
-  SER: '#9e9e9e',
-  default: '#7f8c8d'
+  MAN:'#e06c75', WHL:'#e5c07b', RET:'#98c379', HEA:'#56b6c2',
+  ICT:'#61afef', AGR:'#a8d8a8', FIN:'#c678dd', ENE:'#d19a66',
+  CON:'#be5046', EDU:'#4db6ac', SER:'#9e9e9e', default:'#7f8c8d'
 };
+const SECTOR_LABELS = {
+  MAN:'Manufacturing', WHL:'Wholesale', RET:'Retail', HEA:'Healthcare',
+  ICT:'ICT / Tech', AGR:'Agriculture & Food', FIN:'Finance', ENE:'Energy',
+  CON:'Construction', EDU:'Education', SER:'Services'
+};
+function sectorColor(code){ return SECTOR_COLORS[code]||SECTOR_COLORS.default; }
 
-function sectorColor(code) {
-  return SECTOR_COLORS[code] || SECTOR_COLORS.default;
-}
-
-// ── Load data (split files) ──
-async function loadData() {
+// ── Load data ──────────────────────────────────────────────────────────────
+async function loadData(){
   try {
-    // Industry files split by sector (SER split into two halves)
     const industryFiles = [
-      'data/industries_AGR.json',
-      'data/industries_CON.json',
-      'data/industries_EDU.json',
-      'data/industries_ENE.json',
-      'data/industries_FIN.json',
-      'data/industries_HEA.json',
-      'data/industries_ICT.json',
-      'data/industries_MAN.json',
-      'data/industries_RET.json',
-      'data/industries_SER_1.json',
-      'data/industries_SER_2.json',
+      'data/industries_AGR.json','data/industries_CON.json',
+      'data/industries_EDU.json','data/industries_ENE.json',
+      'data/industries_FIN.json','data/industries_HEA.json',
+      'data/industries_ICT.json','data/industries_MAN_1.json',
+      'data/industries_MAN_2.json','data/industries_RET.json',
+      'data/industries_SER_1.json','data/industries_SER_2.json',
+      'data/industries_SER_3.json','data/industries_SER_4.json',
       'data/industries_WHL.json'
     ];
-
-    // Fetch all files in parallel
     const [indResults, linksResult] = await Promise.all([
       Promise.all(industryFiles.map(f => axios.get(f).then(r => r.data))),
       axios.get('data/links.json').then(r => r.data)
     ]);
-
-    // Merge arrays
     industriesData = indResults.flat();
     linksData = linksResult;
-
     document.getElementById('statsLabel').textContent =
-      `${industriesData.length} industries · ${linksData.length} links`;
-
-    console.log(`✓ Loaded ${industriesData.length} industries, ${linksData.length} links`);
-  } catch (e) {
+      `${industriesData.length.toLocaleString()} industries \u00b7 ${linksData.length.toLocaleString()} links`;
+    console.log(`\u2713 Loaded ${industriesData.length} industries, ${linksData.length} links`);
+  } catch(e){
     console.error('Failed to load data files', e);
-    document.getElementById('statsLabel').textContent = 'Error loading data – check console';
+    document.getElementById('statsLabel').textContent = 'Error loading data \u2013 check console';
   }
 }
 
-// ── Search ──
+// ── Search ─────────────────────────────────────────────────────────────────
 const searchBox = document.getElementById('searchBox');
 const resultsDiv = document.getElementById('results');
 
 searchBox.addEventListener('input', () => {
   const q = searchBox.value.trim().toLowerCase();
   resultsDiv.innerHTML = '';
-  if (!q) { resultsDiv.style.display = 'none'; return; }
+  if(!q){ resultsDiv.style.display='none'; return; }
 
   const matches = industriesData.filter(i =>
     i.RepCode.toLowerCase().includes(q) ||
-    i.NameEnglish.toLowerCase().includes(q)
-  ).slice(0, 20);
+    i.NameEnglish.toLowerCase().includes(q) ||
+    (i.NameNative && i.NameNative.toLowerCase().includes(q)) ||
+    (i.ATECOPrimary && i.ATECOPrimary.includes(q))
+  ).slice(0,25);
 
-  if (!matches.length) { resultsDiv.style.display = 'none'; return; }
-
+  if(!matches.length){ resultsDiv.style.display='none'; return; }
   matches.forEach(item => {
     const div = document.createElement('div');
     div.innerHTML =
-      `<span class="res-code">${item.RepCode}</span> ` +
-      `<span class="res-name">– ${item.NameEnglish}</span>`;
+      `<span class="res-code">${item.RepCode}</span> `+
+      `<span class="res-name">\u2013 ${item.NameEnglish}</span>`+
+      `<span style="float:right;font-size:10px;color:#888;">${SECTOR_LABELS[item.Sector]||item.Sector||''}</span>`;
     div.onclick = () => {
       searchBox.value = item.NameEnglish;
       resultsDiv.style.display = 'none';
@@ -94,147 +77,188 @@ searchBox.addEventListener('input', () => {
   });
   resultsDiv.style.display = 'block';
 });
-
 document.addEventListener('click', e => {
-  if (!e.target.closest('#searchWrap')) resultsDiv.style.display = 'none';
+  if(!e.target.closest('#searchWrap')) resultsDiv.style.display='none';
 });
 
-// ── Build and render graph ──
-function loadGraph(code) {
+// ── Build and render graph ─────────────────────────────────────────────────
+function loadGraph(code){
   currentCode = code;
-  const dir = document.getElementById('filterDir').value;
+  const dir    = document.getElementById('filterDir').value;
   const minStr = parseInt(document.getElementById('filterStr').value, 10);
   const layout = document.getElementById('layoutSel').value;
 
   const center = industriesData.find(i => i.RepCode === code);
-  if (!center) return;
+  if(!center) return;
 
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('currentIndustry').textContent = center.NameEnglish;
 
-  // Filter links
   let relevantLinks = linksData.filter(l =>
     (l.FromIndustryCode === code || l.ToIndustryCode === code) &&
     (dir === 'all' || l.Direction === dir) &&
     (l.StrengthScore >= minStr)
   );
 
-  // Collect node codes
   const nodeCodes = new Set([code]);
   relevantLinks.forEach(l => { nodeCodes.add(l.FromIndustryCode); nodeCodes.add(l.ToIndustryCode); });
 
-  // Build vis nodes
   const visNodes = [];
   nodeCodes.forEach(nc => {
     const ind = industriesData.find(i => i.RepCode === nc);
-    if (!ind) return;
+    if(!ind) return;
     const isCenter = nc === code;
     visNodes.push({
       id: nc,
-      label: ind.NameEnglish,
-      color: {
+      label: ind.NameEnglish.length > 30 ? ind.NameEnglish.slice(0,28)+'\u2026' : ind.NameEnglish,
+      color:{
         background: isCenter ? '#1a2e4a' : sectorColor(ind.Sector),
         border: isCenter ? '#a0c4ff' : '#fff',
-        highlight: { background: '#a0c4ff', border: '#1a2e4a' }
+        highlight:{ background:'#a0c4ff', border:'#1a2e4a' }
       },
-      font: { color: isCenter ? '#fff' : '#222', size: isCenter ? 14 : 12 },
-      size: isCenter ? 20 : 12,
+      font:{ color: isCenter ? '#fff' : '#222', size: isCenter ? 14 : 12 },
+      size: isCenter ? 22 : 13,
       borderWidth: isCenter ? 3 : 1,
-      title: `${ind.NameEnglish}\nSector: ${ind.Sector || '–'}\nStage: ${ind.ValueChainStage || '–'}`
+      title:`<b>${ind.NameEnglish}</b><br>Sector: ${SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013'}<br>Stage: ${ind.ValueChainStage||'\u2013'}<br>ATECO: ${ind.ATECOPrimary||'\u2013'}`
     });
   });
 
-  // Build vis edges
-  const visEdges = relevantLinks.map((l, idx) => ({
+  const visEdges = relevantLinks.map((l,idx) => ({
     id: idx,
-    from: l.FromIndustryCode,
-    to: l.ToIndustryCode,
-    label: l.Direction || '',
-    arrows: l.Direction === 'Peer' ? '' : 'to',
-    dashes: l.Direction === 'Peer',
-    width: l.StrengthScore || 1,
-    color: {
-      color: l.Direction === 'Downstream' ? '#28a745' :
-             l.Direction === 'Upstream'   ? '#ffc107' : '#17a2b8',
+    from: l.FromIndustryCode, to: l.ToIndustryCode,
+    label: l.Direction||'',
+    arrows: l.Direction==='Peer' ? '' : 'to',
+    dashes: l.Direction==='Peer',
+    width: l.StrengthScore||1,
+    color:{
+      color: l.Direction==='Downstream' ? '#28a745' :
+             l.Direction==='Upstream'   ? '#ffc107' : '#17a2b8',
       opacity: 0.8
     },
-    font: { size: 10, align: 'middle' },
-    title: `${l.Direction || 'Related'} · Strength: ${l.StrengthScore || '–'}`
+    font:{ size:10, align:'middle' },
+    title:`${l.Direction||'Related'} \u00b7 Strength: ${l.StrengthScore||'\u2013'}`
   }));
 
-  // Options
   const options = {
-    nodes: { shape: 'dot', font: { face: 'Segoe UI, Arial' } },
-    edges: { smooth: { type: 'dynamic' }, font: { face: 'Segoe UI, Arial' } },
-    physics: layout === 'hierarchical' ? { enabled: false } : {
-      stabilization: { iterations: 200 },
-      barnesHut: { gravitationalConstant: -4000, springLength: 120 }
+    nodes:{ shape:'dot', font:{ face:'Segoe UI, Arial' } },
+    edges:{ smooth:{ type:'dynamic' }, font:{ face:'Segoe UI, Arial' } },
+    physics: layout==='hierarchical' ? { enabled:false } : {
+      stabilization:{ iterations:200 },
+      barnesHut:{ gravitationalConstant:-4000, springLength:120 }
     },
-    layout: layout === 'hierarchical' ? {
-      hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 120 }
+    layout: layout==='hierarchical' ? {
+      hierarchical:{ direction:'UD', sortMethod:'directed', levelSeparation:120 }
     } : {},
-    interaction: { hover: true, tooltipDelay: 200 }
+    interaction:{ hover:true, tooltipDelay:200 }
   };
 
   const container = document.getElementById('network');
-  if (networkInstance) networkInstance.destroy();
+  if(networkInstance) networkInstance.destroy();
   networkInstance = new vis.Network(
     container,
     { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) },
     options
   );
-
-  // Click a neighbor node → reload graph on that node
   networkInstance.on('click', params => {
-    if (params.nodes.length > 0) {
+    if(params.nodes.length > 0){
       const clicked = params.nodes[0];
-      if (clicked !== currentCode) loadGraph(clicked);
+      if(clicked !== currentCode) loadGraph(clicked);
     }
   });
 
-  // Show details in sidebar
   showDetails(center, relevantLinks);
 }
 
-function showDetails(ind, links) {
-  const upstream   = links.filter(l => l.ToIndustryCode   === ind.RepCode && l.Direction === 'Downstream');
-  const downstream = links.filter(l => l.FromIndustryCode === ind.RepCode && l.Direction === 'Downstream');
-  const peers      = links.filter(l => l.Direction === 'Peer');
+// ── Detail panel ───────────────────────────────────────────────────────────
+function showDetails(ind, links){
+  const upstream   = links.filter(l => l.ToIndustryCode   === ind.RepCode && l.Direction==='Downstream');
+  const downstream = links.filter(l => l.FromIndustryCode === ind.RepCode && l.Direction==='Downstream');
+  const peers      = links.filter(l => l.Direction==='Peer');
 
-  function neighborList(arr, codeField, label) {
-    if (!arr.length) return '';
-    return `<div class="neighbors"><strong>${label}</strong>` +
+  function neighborList(arr, codeField, label, cls){
+    if(!arr.length) return '';
+    return `<div class="neighbors"><strong>${label}</strong>`+
       arr.map(l => {
         const nc = l[codeField];
-        const ni = industriesData.find(i => i.RepCode === nc);
+        const ni = industriesData.find(i => i.RepCode===nc);
         return `<div class="neighbor-item" onclick="loadGraph('${nc}')">
           ${ni ? ni.NameEnglish : nc}
-          <span class="tag ${label.includes('Upstream') ? 'dir-upstream' : label.includes('Downstream') ? 'dir-downstream' : 'dir-peer'}">${l.StrengthScore || '–'}</span>
+          <span class="tag ${cls}">${l.StrengthScore||'\u2013'}</span>
         </div>`;
-      }).join('') +
+      }).join('')+
     '</div>';
   }
 
+  function field(label, value){
+    if(!value||value==='nan'||value.trim()==='') return '';
+    return `<div class="field"><span class="label">${label}</span><span class="mono-text">${value}</span></div>`;
+  }
+
+  function longField(label, value){
+    if(!value||value==='nan'||value.trim()==='') return '';
+    return `<div class="field field-block"><span class="label">${label}</span><div class="field-body">${value}</div></div>`;
+  }
+
+  function keywordField(label, value){
+    if(!value||value.trim()==='') return '';
+    const tags = value.split(',').map(k=>k.trim()).filter(Boolean)
+      .map(k=>`<span class="kw-tag">${k}</span>`).join(' ');
+    return `<div class="field field-block"><span class="label">${label}</span><div class="field-body kw-wrap">${tags}</div></div>`;
+  }
+
+  function atecoField(value){
+    if(!value||value.trim()==='') return '';
+    const codes = value.split(',').map(c=>c.trim()).filter(Boolean)
+      .map(c=>`<span class="ateco-tag">${c}</span>`).join(' ');
+    return `<div class="field field-block"><span class="label">ATECO Codes</span><div class="field-body kw-wrap">${codes}</div></div>`;
+  }
+
+  const priorityClass = {'High':'priority-high','Medium':'priority-med','Low':'priority-low'}[ind.Priority]||'priority-med';
+
   document.getElementById('infoBox').innerHTML = `
-    <div class="field"><span class="label">RepCode:</span> ${ind.RepCode}</div>
-    <div class="field"><span class="label">Name:</span> ${ind.NameEnglish}</div>
-    ${ind.NameNative ? `<div class="field"><span class="label">Native:</span> ${ind.NameNative}</div>` : ''}
-    <div class="field"><span class="label">Sector:</span> ${ind.Sector || '–'}</div>
-    <div class="field"><span class="label">Value Chain Stage:</span> ${ind.ValueChainStage || '–'}</div>
-    ${ind.ATECOPrimary ? `<div class="field"><span class="label">ATECO:</span> ${ind.ATECOPrimary}</div>` : ''}
-    ${ind.Description ? `<div class="field"><span class="label">Description:</span><br/><small>${ind.Description}</small></div>` : ''}
-    ${neighborList(upstream,   'FromIndustryCode', '⬆ Upstream suppliers')}
-    ${neighborList(downstream, 'ToIndustryCode',   '⬇ Downstream customers')}
-    ${neighborList(peers,      'ToIndustryCode',   '↔ Peer / adjacent')}
+    <div class="detail-header">
+      <div class="detail-repcode">${ind.RepCode}</div>
+      ${ind.Priority ? `<span class="priority-badge ${priorityClass}">${ind.Priority}</span>` : ''}
+    </div>
+
+    <h3 class="detail-title">${ind.NameEnglish}</h3>
+    ${ind.NameNative && ind.NameNative !== ind.NameEnglish
+      ? `<div class="native-name">${ind.NameNative}</div>` : ''}
+
+    <div class="sector-pill" style="background:${sectorColor(ind.Sector)}22;border:1px solid ${sectorColor(ind.Sector)};color:${sectorColor(ind.Sector)};">
+      ${SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013'} &nbsp;\u00b7&nbsp; ${ind.ValueChainStage||'\u2013'}
+    </div>
+
+    <div class="section-divider">Classification</div>
+    ${field('Primary ATECO', ind.ATECOPrimary)}
+    ${atecoField(ind.ATECOAll)}
+
+    <div class="section-divider">Definition</div>
+    ${longField('Report Definition', ind.ReportDefinitionEN)}
+    ${longField('Marketing Definition', ind.MarketingDefinitionEN)}
+
+    <div class="section-divider">Search Intelligence</div>
+    ${keywordField('Keywords (EN)', ind.KeywordsIncludeEN)}
+    ${keywordField('Keywords (IT)', ind.KeywordsIncludeIT)}
+    ${longField('Orbis Boolean Search', ind.OrbisBoolean)}
+
+    <div class="section-divider">Associations &amp; Boundaries</div>
+    ${longField('Trade Associations', ind.TradeAssociations)}
+    ${keywordField('Adjacent Industries', ind.AdjacentIndustries)}
+
+    <div class="section-divider">Value Chain Links</div>
+    ${neighborList(upstream,   'FromIndustryCode', '\u2b06 Upstream Suppliers',   'dir-upstream')}
+    ${neighborList(downstream, 'ToIndustryCode',   '\u2b07 Downstream Customers', 'dir-downstream')}
+    ${neighborList(peers,      'ToIndustryCode',   '\u2194 Peer / Adjacent',      'dir-peer')}
+    ${!upstream.length && !downstream.length && !peers.length
+      ? '<div class="no-links">No linked industries found for current filters.</div>' : ''}
   `;
 }
 
-// Re-render on filter change
 ['filterDir','filterStr','layoutSel'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => {
-    if (currentCode) loadGraph(currentCode);
+    if(currentCode) loadGraph(currentCode);
   })
 );
 
-// Init
 loadData();
