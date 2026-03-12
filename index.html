@@ -50,6 +50,8 @@
     #drawBtn:hover { background:#3fb95022; }
     #physicsBtn { border-color:#bc8cff; color:#bc8cff; }
     #physicsBtn:hover { background:#bc8cff22; }
+    #iotBtn { border-color:#f0883e; color:#f0883e; }
+    #iotBtn:hover { background:#f0883e22; }
     #statsLabel { font-size:11px; color:#8b949e; white-space:nowrap; }
 
     /* ── FILTER BAR ── */
@@ -157,6 +159,53 @@
     #emptyState h2 { font-size:40px; margin-bottom:12px; }
     #emptyState p  { font-size:14px; }
 
+    /* ── IOT SPIDERWEB VIEW ── */
+    #iotView {
+      display:none; flex:1; background:#0d1117;
+      flex-direction:column; overflow:hidden; position:relative;
+    }
+    #iotView.active { display:flex; }
+    #iotCanvas { flex:1; width:100%; cursor:pointer; }
+    #iotInfo {
+      position:absolute; top:12px; left:12px;
+      background:#161b22dd; border:1px solid #30363d; border-radius:8px;
+      padding:12px 16px; font-size:12px; max-width:280px;
+      backdrop-filter:blur(6px); pointer-events:none;
+    }
+    #iotInfo h3 { color:#f0883e; font-size:13px; margin-bottom:6px; }
+    #iotInfo .iot-source { color:#58a6ff; font-weight:700; }
+    #iotInfo .iot-stat  { color:#8b949e; margin:3px 0; }
+    #iotTooltip {
+      display:none; position:absolute;
+      background:#21262d; border:1px solid #30363d; border-radius:6px;
+      padding:9px 13px; font-size:12px; pointer-events:none;
+      box-shadow:0 4px 16px rgba(0,0,0,.5); max-width:260px; z-index:100;
+    }
+    #iotTooltip strong { color:#f0883e; }
+
+    /* ── IOT GVA SIDEBAR PANEL ── */
+    #iotSidebar {
+      width:280px; background:#161b22; border-left:1px solid #30363d;
+      display:none; flex-direction:column; overflow:hidden; flex-shrink:0;
+    }
+    #iotSidebar.active { display:flex; }
+    #iotSidebarHeader {
+      padding:10px 14px; background:#21262d; border-bottom:1px solid #30363d;
+      font-size:13px; font-weight:700; color:#f0883e; flex-shrink:0;
+    }
+    #gvaList { padding:8px; overflow-y:auto; flex:1; }
+    .gva-item {
+      display:flex; align-items:center; gap:8px;
+      padding:5px 6px; margin:2px 0; border-radius:4px;
+      cursor:pointer; transition:background .1s;
+    }
+    .gva-item:hover { background:#21262d; }
+    .gva-dot  { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .gva-name { flex:1; font-size:11px; color:#c9d1d9; }
+    .gva-val  { font-size:11px; color:#8b949e; white-space:nowrap; }
+    .gva-bar-wrap { width:60px; background:#21262d; border-radius:2px; height:6px; flex-shrink:0; }
+    .gva-bar  { height:6px; border-radius:2px; }
+
     /* ── CONTEXT MENU ── */
     #ctxMenu {
       display:none; position:fixed; z-index:500;
@@ -182,6 +231,17 @@
     #legend h3 { margin:0 0 7px; font-size:11px; color:#58a6ff; text-transform:uppercase; letter-spacing:.08em; }
     .leg-row { display:flex; align-items:center; gap:7px; margin:4px 0; color:#8b949e; }
     .leg-line { width:20px; height:3px; border-radius:2px; flex-shrink:0; }
+
+    /* ── IOT LEGEND ── */
+    #iotLegend {
+      position:absolute; bottom:16px; right:16px;
+      background:#161b22cc; border:1px solid #30363d;
+      border-radius:6px; padding:10px 14px; font-size:11px; z-index:50;
+      backdrop-filter:blur(6px); display:none;
+    }
+    #iotLegend h3 { margin:0 0 7px; font-size:11px; color:#f0883e; text-transform:uppercase; letter-spacing:.08em; }
+    .iot-leg-row { display:flex; align-items:center; gap:7px; margin:3px 0; color:#8b949e; }
+    .iot-leg-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
   </style>
 </head>
 <body>
@@ -196,6 +256,7 @@
   <button class="tb-btn" id="drawBtn"   onclick="toggleDrawMode()">✏ Add Connection</button>
   <button class="tb-btn" id="physicsBtn" onclick="togglePhysics()">▶ Physics OFF</button>
   <button class="tb-btn" id="resetBtn">↺ Reset</button>
+  <button class="tb-btn" id="iotBtn" onclick="toggleIotView()">🌐 IOT Spiderweb</button>
   <span id="statsLabel"></span>
 </div>
 
@@ -223,31 +284,55 @@
 
 <!-- MAIN -->
 <div id="main">
+  <!-- GRAPH SIDEBAR -->
   <div id="sidebar">
     <div id="sidebarHeader">📋 Industry Details</div>
     <div id="infoBox">
       <div id="emptyMsg">Search or click a node to explore.</div>
     </div>
   </div>
+
+  <!-- VIS NETWORK (Industry Graph) -->
   <div id="network">
     <div id="emptyState">
       <h2>🕸</h2>
       <p>Loading industry web…</p>
     </div>
+    <!-- Graph legend -->
+    <div id="legend">
+      <h3>Connection type</h3>
+      <div class="leg-row"><div class="leg-line" style="background:#d29922"></div> Upstream</div>
+      <div class="leg-row"><div class="leg-line" style="background:#58a6ff;border:1px dashed #58a6ff"></div> Peer</div>
+      <div class="leg-row"><div class="leg-line" style="background:#3fb950"></div> Downstream</div>
+      <div class="leg-row" style="margin-top:8px;font-size:10px;color:#484f58;">Right-click any node/edge</div>
+    </div>
+  </div>
+
+  <!-- IOT SPIDERWEB VIEW -->
+  <div id="iotView">
+    <div id="iotInfo">
+      <h3>🌐 EA20 IOT Spiderweb</h3>
+      <div class="iot-source">Eurostat NAIO_10_CP1750</div>
+      <div class="iot-stat">Euro Area 20 · 2023 · Total flows</div>
+      <div class="iot-stat" id="iotStatLine">Loading…</div>
+      <div class="iot-stat" style="margin-top:6px;color:#484f58;">Hover node to inspect · click to highlight</div>
+    </div>
+    <canvas id="iotCanvas"></canvas>
+    <div id="iotTooltip"></div>
+    <div id="iotLegend">
+      <h3>Macro Sector</h3>
+    </div>
+  </div>
+
+  <!-- IOT GVA SIDEBAR -->
+  <div id="iotSidebar">
+    <div id="iotSidebarHeader">📊 GVA by Industry (EA20 2023)</div>
+    <div id="gvaList"></div>
   </div>
 </div>
 
 <!-- CONTEXT MENU -->
 <div id="ctxMenu"></div>
-
-<!-- LEGEND -->
-<div id="legend">
-  <h3>Connection type</h3>
-  <div class="leg-row"><div class="leg-line" style="background:#d29922"></div> Upstream</div>
-  <div class="leg-row"><div class="leg-line" style="background:#58a6ff;border:1px dashed #58a6ff"></div> Peer</div>
-  <div class="leg-row"><div class="leg-line" style="background:#3fb950"></div> Downstream</div>
-  <div class="leg-row" style="margin-top:8px;font-size:10px;color:#484f58;">Right-click any node/edge</div>
-</div>
 
 <script src="app.js"></script>
 </body>
