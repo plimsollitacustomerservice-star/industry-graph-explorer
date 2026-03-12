@@ -18,7 +18,7 @@
       position: relative; z-index: 100;
     }
     #topbar h1 { font-size: 16px; margin: 0; white-space: nowrap; }
-    #searchWrap { position: relative; flex: 1; max-width: 420px; }
+    #searchWrap { position: relative; flex: 1; max-width: 440px; }
     #searchBox {
       width: 100%; padding: 7px 12px;
       border: none; border-radius: 4px; font-size: 14px;
@@ -28,17 +28,28 @@
       position: absolute; top: 34px; left: 0; width: 100%;
       background: #fff; border: 1px solid #ccc;
       border-radius: 0 0 4px 4px;
-      max-height: 260px; overflow-y: auto;
-      z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      max-height: 280px; overflow-y: auto;
+      z-index: 300; box-shadow: 0 4px 12px rgba(0,0,0,.2);
     }
     #results div { padding: 8px 12px; cursor: pointer; font-size: 13px; color: #222; border-bottom: 1px solid #f0f0f0; }
     #results div:hover { background: #e8f0fe; }
-    #results .res-code { font-weight: bold; color: #1a2e4a; }
-    #results .res-name { color: #555; }
+    .res-code { font-weight: bold; color: #1a2e4a; }
+    .res-name { color: #555; }
+    .res-sector { float: right; font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-top: 1px; font-weight: 700; }
 
-    /* ── Filters bar ── */
+    /* ── Reset button ── */
+    #resetBtn {
+      padding: 7px 14px; border: none; border-radius: 4px;
+      background: #e05c5c; color: #fff; font-size: 13px; font-weight: 700;
+      cursor: pointer; white-space: nowrap; letter-spacing: 0.03em;
+      transition: background .15s;
+    }
+    #resetBtn:hover { background: #c0392b; }
+    #statsLabel { font-size: 12px; opacity: .7; white-space: nowrap; }
+
+    /* ── Filter bar ── */
     #filterbar {
-      display: flex; gap: 10px; align-items: center;
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
       padding: 6px 16px;
       background: #253d5e; color: #cfd8e3; font-size: 13px;
     }
@@ -48,166 +59,192 @@
       border: 1px solid #4a6480;
       background: #1a2e4a; color: #fff; font-size: 13px;
     }
+    #currentIndustry { margin-left: auto; font-weight: bold; color: #a0c4ff; font-size: 13px; }
 
-    /* ── Main area ── */
-    #main { display: flex; height: calc(100vh - 88px); }
+    /* ── Main layout ── */
+    #main { display: flex; height: calc(100vh - 92px); overflow: hidden; }
 
-    /* ── Side panel ── */
+    /* ── Sidebar ── */
     #sidebar {
-      width: 320px; min-width: 240px;
-      background: #fff; border-right: 1px solid #dde;
-      padding: 14px 12px; overflow-y: auto; font-size: 13px;
+      width: 340px; min-width: 260px; max-width: 400px;
+      background: #fff; border-right: 2px solid #dde;
+      overflow-y: auto; font-size: 13px; flex-shrink: 0;
     }
-    #sidebar h2 { font-size: 14px; margin: 0 0 10px; color: #1a2e4a; }
+    #sidebarHeader {
+      position: sticky; top: 0; z-index: 10;
+      background: #1a2e4a; color: #fff;
+      padding: 10px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #sidebarHeader h2 { margin: 0; font-size: 14px; }
 
-    /* ── Detail rows ── */
-    #infoBox { color: #333; line-height: 1.6; }
+    #infoBox { padding: 14px 14px 20px; color: #333; line-height: 1.6; }
+    #emptyMsg { color: #aaa; font-style: italic; font-size: 13px; padding: 20px 0; text-align: center; }
 
-    .d-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .d-repcode { font-size: 11px; font-weight: 700; background: #1a2e4a; color: #a0c4ff; padding: 2px 8px; border-radius: 10px; }
-    .d-title { font-size: 15px; font-weight: 700; color: #1a2e4a; margin: 4px 0 2px; line-height: 1.4; }
-    .d-native { font-size: 12px; color: #888; font-style: italic; margin-bottom: 8px; }
+    /* Detail card */
+    .d-repcode {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      background: #1a2e4a; color: #a0c4ff;
+      padding: 2px 9px; border-radius: 10px; margin-bottom: 6px;
+    }
+    .d-title {
+      font-size: 16px; font-weight: 700; color: #1a2e4a;
+      margin: 4px 0 2px; line-height: 1.35;
+    }
+    .d-native { font-size: 12px; color: #888; font-style: italic; margin-bottom: 10px; }
     .sector-pill {
-      display: inline-block; padding: 3px 10px;
+      display: inline-block; padding: 3px 11px;
       border-radius: 12px; font-size: 11px; font-weight: 700;
-      margin-bottom: 12px; letter-spacing: 0.03em;
+      margin-bottom: 14px; letter-spacing: 0.03em;
+    }
+    .d-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .priority-badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+    .priority-high { background: #fde8e8; color: #c0392b; border: 1px solid #f5b7b1; }
+    .priority-med  { background: #fef9e7; color: #b7950b; border: 1px solid #f9e79f; }
+    .priority-low  { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; }
+    .status-badge {
+      display: inline-block; padding: 2px 9px; border-radius: 10px;
+      font-size: 11px; font-weight: 700;
+      background: #e8f4fd; color: #1a5276; border: 1px solid #aed6f1;
     }
 
+    /* Sections */
     .d-section {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.08em; color: #1a2e4a;
       border-top: 2px solid #e8ecf5;
-      margin: 14px 0 8px; padding-top: 8px;
+      margin: 16px 0 8px; padding-top: 8px;
     }
-    .d-row { display: flex; gap: 6px; margin-bottom: 7px; align-items: flex-start; }
+    .d-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: flex-start; }
     .d-label {
-      flex: 0 0 110px; font-size: 11px; font-weight: 600;
+      flex: 0 0 118px; font-size: 11px; font-weight: 600;
       color: #666; padding-top: 1px; line-height: 1.5;
     }
     .d-val { flex: 1; font-size: 12px; color: #222; line-height: 1.6; word-break: break-word; }
-    .empty-val { color: #bbb; }
+    .empty-val { color: #bbb; font-style: italic; }
 
     /* ATECO chips */
     .ateco-chip {
       display: inline-block;
       background: #eef2ff; border: 1px solid #c0ccff;
-      border-radius: 4px; padding: 1px 6px;
+      border-radius: 4px; padding: 1px 7px;
       font-size: 11px; font-family: monospace;
-      color: #1a2e4a; margin: 1px 2px 1px 0;
+      color: #1a2e4a; margin: 2px 2px 2px 0;
     }
 
     /* Keyword tags */
     .kw-tag {
       display: inline-block;
       background: #f0f8f0; border: 1px solid #b2d8b2;
-      border-radius: 10px; padding: 1px 7px;
-      font-size: 11px; color: #2d6a2d; margin: 1px 2px 1px 0;
+      border-radius: 10px; padding: 1px 8px;
+      font-size: 11px; color: #2d6a2d; margin: 2px 2px 2px 0;
     }
 
-    /* Orbis Boolean code box */
+    /* Orbis Boolean box */
     .orbis-box {
-      background: #1a1a2e; color: #7ee8a2;
-      font-family: monospace; font-size: 11px;
+      background: #111827; color: #7ee8a2;
+      font-family: 'Courier New', monospace; font-size: 11px;
       padding: 8px 10px; border-radius: 6px;
       white-space: pre-wrap; word-break: break-all;
-      line-height: 1.6;
+      line-height: 1.6; max-height: 120px; overflow-y: auto;
     }
 
-    /* Collapsible */
+    /* Collapsible text */
     .collapsible-wrap { position: relative; }
     .ctext.collapsed {
-      max-height: 58px; overflow: hidden;
-      -webkit-mask-image: linear-gradient(180deg,#000 55%,transparent);
-      mask-image: linear-gradient(180deg,#000 55%,transparent);
+      max-height: 60px; overflow: hidden;
+      -webkit-mask-image: linear-gradient(180deg, #000 50%, transparent 100%);
+      mask-image: linear-gradient(180deg, #000 50%, transparent 100%);
     }
     .ctext.expanded { max-height: none; }
     .toggle-btn {
-      display: inline-block; margin-top: 3px;
+      display: inline-block; margin-top: 4px;
       font-size: 11px; color: #3a86ff;
       cursor: pointer; font-weight: 600; user-select: none;
     }
     .toggle-btn:hover { text-decoration: underline; }
 
-    /* Priority badges */
-    .priority-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
-    .priority-high { background:#fde8e8; color:#c0392b; border:1px solid #f5b7b1; }
-    .priority-med  { background:#fef9e7; color:#b7950b; border:1px solid #f9e79f; }
-    .priority-low  { background:#eafaf1; color:#1e8449; border:1px solid #a9dfbf; }
+    /* ── Connection sections ── */
+    .conn-group { margin-bottom: 10px; }
+    .conn-group-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; padding: 4px 8px;
+      border-radius: 4px; margin-bottom: 5px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .conn-upstream   { background: #fff8e1; color: #7d5a00; }
+    .conn-peer       { background: #e0f7fa; color: #00565f; }
+    .conn-downstream { background: #e8f5e9; color: #1b5e20; }
+    .conn-count { font-weight: 400; opacity: .7; }
 
-    /* Sector badge (inline) */
-    .sector-badge {
-      display: inline-block; padding: 2px 8px;
-      border-radius: 10px; font-size: 11px; font-weight: 700;
+    .neighbor-item {
+      padding: 6px 9px; margin: 3px 0;
+      background: #f5f7ff; border-radius: 4px;
+      cursor: pointer; font-size: 12px; color: #1a2e4a;
+      border-left: 3px solid #4a90d9;
+      transition: background .1s;
+      display: flex; align-items: center; justify-content: space-between;
     }
-
-    /* Neighbors */
-    #infoBox .neighbors { margin-top: 4px; }
-    #infoBox .neighbors strong { font-size: 11px; display: block; margin-bottom: 4px; color: #555; }
-    #infoBox .neighbor-item {
-      padding: 5px 8px; margin: 3px 0;
-      background: #f5f7ff; border-radius: 3px;
-      cursor: pointer; border-left: 3px solid #1a2e4a;
-      font-size: 12px;
-    }
-    #infoBox .neighbor-item:hover { background: #e8f0fe; }
-    #infoBox .tag {
-      display: inline-block; padding: 2px 7px;
-      border-radius: 10px; font-size: 11px; font-weight: bold; margin-right: 4px;
-    }
-    .dir-downstream { background: #d4edda; color: #155724; }
-    .dir-upstream   { background: #fff3cd; color: #856404; }
-    .dir-peer       { background: #d1ecf1; color: #0c5460; }
-    .no-links { color: #aaa; font-size: 12px; font-style: italic; }
+    .neighbor-item:hover { background: #dce8ff; }
+    .neighbor-item.upstream   { border-left-color: #e6a817; }
+    .neighbor-item.peer       { border-left-color: #17a2b8; }
+    .neighbor-item.downstream { border-left-color: #28a745; }
+    .neighbor-code { font-size: 10px; color: #888; margin-left: 6px; white-space: nowrap; }
+    .no-links { color: #bbb; font-size: 12px; font-style: italic; padding: 4px 0; }
 
     /* ── Graph canvas ── */
-    #network { flex: 1; background: #fafbff; }
+    #network { flex: 1; background: #fafbff; position: relative; min-width: 0; }
+    #emptyState {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center; color: #bbb; pointer-events: none;
+    }
+    #emptyState h2 { font-size: 32px; margin-bottom: 10px; }
+    #emptyState p  { font-size: 14px; }
 
     /* ── Legend ── */
     #legend {
-      position: absolute; bottom: 20px; right: 20px;
-      background: rgba(255,255,255,.92); border: 1px solid #dde;
-      border-radius: 6px; padding: 10px 14px; font-size: 12px; z-index: 50;
+      position: absolute; bottom: 16px; right: 16px;
+      background: rgba(255,255,255,.95); border: 1px solid #dde;
+      border-radius: 6px; padding: 10px 14px;
+      font-size: 12px; z-index: 50;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
     }
     #legend h3 { margin: 0 0 6px; font-size: 12px; color: #1a2e4a; }
-    .leg-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
-    .leg-dot { width: 12px; height: 12px; border-radius: 50%; }
-
-    /* ── Empty state ── */
-    #emptyState {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%,-50%);
-      text-align: center; color: #aaa; pointer-events: none;
-    }
-    #emptyState h2 { font-size: 22px; color: #ccc; margin-bottom: 8px; }
+    .leg-row { display: flex; align-items: center; gap: 7px; margin: 4px 0; }
+    .leg-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
   </style>
 </head>
 <body>
 
+<!-- ── TOP BAR ── -->
 <div id="topbar">
   <h1>🔗 Industry Graph Explorer</h1>
   <div id="searchWrap">
     <input id="searchBox" type="text" placeholder="Search by name, code, ATECO or keyword…" autocomplete="off" />
     <div id="results"></div>
   </div>
-  <span id="statsLabel" style="font-size:12px;opacity:.7;"></span>
+  <button id="resetBtn" title="Clear and start a new search">↺ Reset</button>
+  <span id="statsLabel"></span>
 </div>
 
+<!-- ── FILTER BAR ── -->
 <div id="filterbar">
   <label>Direction:
     <select id="filterDir">
-      <option value="all">All</option>
-      <option value="Downstream">Downstream only</option>
+      <option value="all">All connections</option>
       <option value="Upstream">Upstream only</option>
       <option value="Peer">Peer only</option>
+      <option value="Downstream">Downstream only</option>
     </select>
   </label>
   <label>Min strength:
     <select id="filterStr">
-      <option value="1">1+</option>
-      <option value="2">2+</option>
-      <option value="3">3+</option>
-      <option value="4">4+</option>
-      <option value="5">5 only</option>
+      <option value="1">Strength 1+</option>
+      <option value="2">Strength 2+</option>
+      <option value="3">Strength 3+</option>
+      <option value="4">Strength 4+</option>
+      <option value="5">Strength 5</option>
     </select>
   </label>
   <label>Layout:
@@ -216,27 +253,36 @@
       <option value="hierarchical">Hierarchical</option>
     </select>
   </label>
-  <span id="currentIndustry" style="margin-left:auto;font-weight:bold;color:#a0c4ff;"></span>
+  <span id="currentIndustry"></span>
 </div>
 
+<!-- ── MAIN ── -->
 <div id="main">
+
+  <!-- Sidebar -->
   <div id="sidebar">
-    <h2>Industry Details</h2>
-    <div id="infoBox"><em style="color:#aaa">Search for an industry above to begin.</em></div>
+    <div id="sidebarHeader"><h2>📋 Industry Details</h2></div>
+    <div id="infoBox">
+      <div id="emptyMsg">Search for an industry above to begin.</div>
+    </div>
   </div>
+
+  <!-- Graph -->
   <div id="network">
     <div id="emptyState">
       <h2>🏭</h2>
-      <p>Search for an industry above<br/>to explore its supply chain connections.</p>
+      <p>Search for an industry<br/>to explore its connections.</p>
     </div>
   </div>
+
 </div>
 
+<!-- ── LEGEND ── -->
 <div id="legend">
-  <h3>Edge direction</h3>
-  <div class="leg-row"><span class="tag dir-downstream">▶</span> Downstream (supplies to)</div>
-  <div class="leg-row"><span class="tag dir-upstream">◀</span> Upstream (supplied by)</div>
-  <div class="leg-row"><span class="tag dir-peer">↔</span> Peer / adjacent</div>
+  <h3>Connection type</h3>
+  <div class="leg-row"><span style="width:18px;height:4px;background:#e6a817;display:inline-block;border-radius:2px;"></span> Upstream (supplies to this)</div>
+  <div class="leg-row"><span style="width:18px;height:4px;background:#17a2b8;display:inline-block;border-radius:2px;"></span> Peer / adjacent</div>
+  <div class="leg-row"><span style="width:18px;height:4px;background:#28a745;display:inline-block;border-radius:2px;"></span> Downstream (this supplies)</div>
 </div>
 
 <script src="app.js"></script>

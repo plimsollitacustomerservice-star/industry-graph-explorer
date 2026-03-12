@@ -1,10 +1,11 @@
-// ── app.js – Industry Graph Explorer ──
+// ── app.js – Industry Graph Explorer ──────────────────────────────────────
 
-let industriesData = [];
-let linksData = [];
+let industriesData = [];   // all loaded industry objects
+let linksData      = [];   // all loaded link objects
 let networkInstance = null;
-let currentCode = null;
+let currentCode    = null; // RepCode of selected industry
 
+// ── Sector colours ─────────────────────────────────────────────────────────
 const SECTOR_COLORS = {
   MAN:'#e06c75', WHL:'#e5c07b', RET:'#98c379', HEA:'#56b6c2',
   ICT:'#61afef', AGR:'#a8d8a8', FIN:'#c678dd', ENE:'#d19a66',
@@ -15,19 +16,30 @@ const SECTOR_LABELS = {
   ICT:'ICT / Tech', AGR:'Agriculture & Food', FIN:'Finance', ENE:'Energy',
   CON:'Construction', EDU:'Education', SER:'Services'
 };
-function sectorColor(code){ return SECTOR_COLORS[code]||SECTOR_COLORS.default; }
+function sectorColor(code){ return SECTOR_COLORS[code] || SECTOR_COLORS.default; }
+function sectorLabel(code){ return SECTOR_LABELS[code] || code || 'Other'; }
 
-// ── Load data via manifest.json ──────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function empty(v){
+  if(!v) return true;
+  const s = String(v).trim();
+  return s==='' || s==='undefined' || s==='null' || s==='None' || s==='[null]';
+}
+
+function val(v, fallback=''){
+  return empty(v) ? fallback : String(v).trim();
+}
+
+// ── DATA LOADING ─────────────────────────────────────────────────────────────
 async function loadData(){
   const statsEl = document.getElementById('statsLabel');
   try {
-    statsEl.textContent = 'Loading manifest...';
+    statsEl.textContent = 'Loading…';
     const manifest = await axios.get('data/manifest.json').then(r => r.data);
-
     const industryFiles = manifest.industryFiles.map(f => 'data/' + f);
     const linkFiles     = manifest.linkFiles.map(f => 'data/' + f);
-
-    statsEl.textContent = `Loading ${industryFiles.length} industry files…`;
 
     const [indResults, linkResults] = await Promise.all([
       Promise.all(industryFiles.map(f => axios.get(f).then(r => r.data))),
@@ -36,18 +48,16 @@ async function loadData(){
 
     industriesData = indResults.flat();
     linksData      = linkResults.flat();
-
     statsEl.textContent =
-      `${industriesData.length.toLocaleString()} industries \u00b7 ${linksData.length.toLocaleString()} links`;
-    console.log(`\u2713 Loaded ${industriesData.length} industries, ${linksData.length} links`);
+      `${industriesData.length.toLocaleString()} industries · ${linksData.length.toLocaleString()} links`;
   } catch(e){
-    console.error('Failed to load data files', e);
-    statsEl.textContent = 'Error loading data \u2013 check console';
+    console.error('Failed to load data', e);
+    statsEl.textContent = 'Error loading data – check console';
   }
 }
 
-// ── Search ─────────────────────────────────────────────────────────────────
-const searchBox = document.getElementById('searchBox');
+// ── SEARCH ───────────────────────────────────────────────────────────────────
+const searchBox  = document.getElementById('searchBox');
 const resultsDiv = document.getElementById('results');
 
 searchBox.addEventListener('input', () => {
@@ -58,239 +68,386 @@ searchBox.addEventListener('input', () => {
   const matches = industriesData.filter(i =>
     i.RepCode.toLowerCase().includes(q) ||
     i.NameEnglish.toLowerCase().includes(q) ||
-    (i.NameNative && i.NameNative.toLowerCase().includes(q)) ||
+    (i.NameNative  && i.NameNative.toLowerCase().includes(q)) ||
     (i.ATECOPrimary && i.ATECOPrimary.includes(q)) ||
-    (i.KeywordsIncludeEN && i.KeywordsIncludeEN.toLowerCase().includes(q)) ||
-    (i.ATECOAll && i.ATECOAll.includes(q))
-  ).slice(0,25);
+    (i.ATECOAll    && i.ATECOAll.includes(q)) ||
+    (i.KeywordsIncludeEN && i.KeywordsIncludeEN.toLowerCase().includes(q))
+  ).slice(0, 25);
 
   if(!matches.length){ resultsDiv.style.display='none'; return; }
+
   matches.forEach(item => {
     const div = document.createElement('div');
+    const sc  = sectorColor(item.Sector);
     div.innerHTML =
-      `<span class="res-code">${item.RepCode}</span> `+
-      `<span class="res-name">\u2013 ${item.NameEnglish}</span>`+
-      `<span style="float:right;font-size:10px;color:#888;">${SECTOR_LABELS[item.Sector]||item.Sector||''}</span>`;
-    div.onclick = () => {
-      searchBox.value = item.NameEnglish;
+      `<span class="res-code">${esc(item.RepCode)}</span> `+
+      `<span class="res-name">– ${esc(item.NameEnglish)}</span>`+
+      `<span class="res-sector" style="background:${sc}22;color:${sc};border:1px solid ${sc}55">`+
+        `${esc(item.Sector)}</span>`;
+    div.addEventListener('mousedown', e => {
+      e.preventDefault();
+      selectIndustry(item.RepCode);
       resultsDiv.style.display = 'none';
-      loadGraph(item.RepCode);
-    };
+      searchBox.value = item.NameEnglish;
+    });
     resultsDiv.appendChild(div);
   });
   resultsDiv.style.display = 'block';
 });
+
 document.addEventListener('click', e => {
-  if(!e.target.closest('#searchWrap')) resultsDiv.style.display='none';
+  if(!document.getElementById('searchWrap').contains(e.target)){
+    resultsDiv.style.display = 'none';
+  }
 });
 
-// ── Build and render graph ─────────────────────────────────────────────────
-function loadGraph(code){
-  currentCode = code;
-  const dir    = document.getElementById('filterDir').value;
-  const minStr = parseInt(document.getElementById('filterStr').value, 10);
-  const layout = document.getElementById('layoutSel').value;
+// ── RESET ────────────────────────────────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', resetPage);
 
-  const center = industriesData.find(i => i.RepCode === code);
-  if(!center) return;
+function resetPage(){
+  currentCode = null;
+  searchBox.value = '';
+  resultsDiv.innerHTML = '';
+  resultsDiv.style.display = 'none';
+  document.getElementById('currentIndustry').textContent = '';
+  document.getElementById('infoBox').innerHTML = '<div id="emptyMsg">Search for an industry above to begin.</div>';
+  document.getElementById('emptyState').style.display = 'block';
+  if(networkInstance){ networkInstance.destroy(); networkInstance = null; }
+  document.getElementById('filterDir').value = 'all';
+  document.getElementById('filterStr').value = '1';
+  document.getElementById('layoutSel').value = 'physics';
+}
 
+// ── FILTER / LAYOUT LISTENERS ─────────────────────────────────────────────
+document.getElementById('filterDir').addEventListener('change', () => { if(currentCode) buildGraph(currentCode); });
+document.getElementById('filterStr').addEventListener('change', () => { if(currentCode) buildGraph(currentCode); });
+document.getElementById('layoutSel').addEventListener('change', () => { if(currentCode) buildGraph(currentCode); });
+
+// ── SELECT INDUSTRY (main entry point) ───────────────────────────────────────
+function selectIndustry(repCode){
+  const ind = industriesData.find(i => i.RepCode === repCode);
+  if(!ind) return;
+  currentCode = repCode;
+  document.getElementById('currentIndustry').textContent = ind.NameEnglish;
   document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('currentIndustry').textContent = center.NameEnglish;
+  renderSidebar(ind);
+  buildGraph(repCode);
+}
 
-  let relevantLinks = linksData.filter(l =>
-    (l.FromIndustryCode === code || l.ToIndustryCode === code) &&
-    (dir === 'all' || l.Direction === dir) &&
-    (l.StrengthScore >= minStr)
-  );
+// ── SIDEBAR RENDERER ─────────────────────────────────────────────────────────
+function renderSidebar(ind){
+  const sc = sectorColor(ind.Sector);
 
-  const nodeCodes = new Set([code]);
-  relevantLinks.forEach(l => { nodeCodes.add(l.FromIndustryCode); nodeCodes.add(l.ToIndustryCode); });
+  // Collect connections
+  const links = getLinks(ind.RepCode);
+  const upstream   = links.filter(l => l._dir === 'Upstream');
+  const peers      = links.filter(l => l._dir === 'Peer');
+  const downstream = links.filter(l => l._dir === 'Downstream');
 
-  const visNodes = [];
-  nodeCodes.forEach(nc => {
-    const ind = industriesData.find(i => i.RepCode === nc);
-    if(!ind) return;
-    const isCenter = nc === code;
-    visNodes.push({
-      id: nc,
-      label: ind.NameEnglish.length > 30 ? ind.NameEnglish.slice(0,28)+'\u2026' : ind.NameEnglish,
-      color:{
-        background: isCenter ? '#1a2e4a' : sectorColor(ind.Sector),
-        border: isCenter ? '#a0c4ff' : '#fff',
-        highlight:{ background:'#a0c4ff', border:'#1a2e4a' }
-      },
-      font:{ color: isCenter ? '#fff' : '#222', size: isCenter ? 14 : 12 },
-      size: isCenter ? 22 : 13,
-      borderWidth: isCenter ? 3 : 1,
-      title:`<b>${ind.NameEnglish}</b><br>Sector: ${SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013'}<br>ATECO: ${ind.ATECOPrimary||'\u2013'}`
+  let html = '';
+
+  // ── Identity block ──
+  html += `<span class="d-repcode">#${esc(ind.RepCode)}</span>`;
+  html += `<div class="d-title">${esc(ind.NameEnglish)}</div>`;
+  if(!empty(ind.NameNative))
+    html += `<div class="d-native">${esc(ind.NameNative)}</div>`;
+
+  html += `<span class="sector-pill" style="background:${sc}22;color:${sc};border:1px solid ${sc}66">
+    ${esc(sectorLabel(ind.Sector))}</span>`;
+
+  // Priority + Status badges
+  html += '<div class="d-badges">';
+  if(!empty(ind.Priority)){
+    const pcls = ind.Priority==='High' ? 'priority-high' : ind.Priority==='Low' ? 'priority-low' : 'priority-med';
+    html += `<span class="priority-badge ${pcls}">⚡ ${esc(ind.Priority)} priority</span>`;
+  }
+  if(!empty(ind.ReportDefinitionEN) && ind.ReportDefinitionEN.length < 30)
+    html += `<span class="status-badge">📄 ${esc(ind.ReportDefinitionEN)}</span>`;
+  if(!empty(ind.MarketingDefinitionEN) && ind.MarketingDefinitionEN.length < 30)
+    html += `<span class="status-badge">📣 ${esc(ind.MarketingDefinitionEN)}</span>`;
+  if(!empty(ind.ValueChainStage))
+    html += `<span class="status-badge">🔗 ${esc(ind.ValueChainStage)}</span>`;
+  html += '</div>';
+
+  // ── Classification ──
+  html += '<div class="d-section">📌 Classification</div>';
+
+  // ATECO codes
+  if(!empty(ind.ATECOPrimary) || !empty(ind.ATECOAll)){
+    const allCodes = val(ind.ATECOAll) || val(ind.ATECOPrimary);
+    const chips = allCodes.split(/[,;|\s]+/).filter(Boolean).map(c =>
+      `<span class="ateco-chip">${esc(c.trim())}</span>`
+    ).join('');
+    html += `<div class="d-row">
+      <span class="d-label">ATECO / NACE</span>
+      <span class="d-val">${chips || '<em class="empty-val">—</em>'}</span></div>`;
+  } else {
+    html += `<div class="d-row"><span class="d-label">ATECO / NACE</span><span class="d-val empty-val">Not assigned</span></div>`;
+  }
+
+  // Sector
+  html += `<div class="d-row"><span class="d-label">Sector</span>
+    <span class="d-val">${esc(sectorLabel(ind.Sector))} <em style="color:#aaa">(${esc(ind.Sector)})</em></span></div>`;
+
+  // ── Description ──
+  const defEN = val(ind.ReportDefinitionEN);
+  const defMkt = val(ind.MarketingDefinitionEN);
+  const hasLongDef = defEN.length > 60 || defMkt.length > 60;
+
+  if(defEN.length > 30 || defMkt.length > 30){
+    html += '<div class="d-section">📝 Definition</div>';
+    if(defEN.length > 30){
+      const longEN = defEN.length > 200;
+      html += `<div class="collapsible-wrap">
+        <div class="ctext ${longEN ? 'collapsed' : ''}" id="def-en">${esc(defEN)}</div>
+        ${longEN ? '<span class="toggle-btn" onclick="toggleText(\'def-en\', this)">Show more ▼</span>' : ''}
+      </div>`;
+    }
+    if(defMkt.length > 30 && defMkt !== defEN){
+      const longMK = defMkt.length > 200;
+      html += `<div style="margin-top:6px;" class="collapsible-wrap">
+        <div class="ctext ${longMK ? 'collapsed' : ''}" id="def-mkt">${esc(defMkt)}</div>
+        ${longMK ? '<span class="toggle-btn" onclick="toggleText(\'def-mkt\', this)">Show more ▼</span>' : ''}
+      </div>`;
+    }
+  }
+
+  // ── Keywords ──
+  const kwEN = val(ind.KeywordsIncludeEN);
+  const kwIT = val(ind.KeywordsIncludeIT);
+  if(kwEN || kwIT){
+    html += '<div class="d-section">🏷️ Keywords</div>';
+    if(kwEN){
+      const tags = kwEN.split(/[,;|]+/).filter(Boolean).map(k =>
+        `<span class="kw-tag">${esc(k.trim())}</span>`
+      ).join('');
+      html += `<div class="d-row"><span class="d-label">EN</span><span class="d-val">${tags}</span></div>`;
+    }
+    if(kwIT){
+      const tags = kwIT.split(/[,;|]+/).filter(Boolean).map(k =>
+        `<span class="kw-tag" style="background:#fff8f0;border-color:#f5c89a;color:#7d4000">${esc(k.trim())}</span>`
+      ).join('');
+      html += `<div class="d-row"><span class="d-label">IT</span><span class="d-val">${tags}</span></div>`;
+    }
+  }
+
+  // ── Orbis Boolean ──
+  const orb = val(ind.OrbisBoolean);
+  if(orb){
+    html += '<div class="d-section">🔍 Orbis Boolean</div>';
+    html += `<div class="orbis-box">${esc(orb)}</div>`;
+  }
+
+  // ── Trade Associations ──
+  const tra = val(ind.TradeAssociations);
+  if(tra){
+    html += '<div class="d-section">🏛️ Trade Associations</div>';
+    html += `<div style="font-size:12px;line-height:1.7;">${esc(tra).replace(/;/g,'<br/>')}</div>`;
+  }
+
+  // ── Connections ──
+  html += `<div class="d-section">🔗 Connections (${links.length} total)</div>`;
+
+  if(!links.length){
+    html += '<div class="no-links">No connections found for this industry.</div>';
+  } else {
+
+    // Upstream
+    if(upstream.length){
+      html += `<div class="conn-group">
+        <div class="conn-group-label conn-upstream">▲ Upstream <span class="conn-count">(${upstream.length})</span></div>`;
+      upstream.forEach(l => {
+        const other = industriesData.find(i => i.RepCode === l._other);
+        const oname = other ? other.NameEnglish : l._other;
+        html += `<div class="neighbor-item upstream" onclick="selectIndustry('${esc(l._other)}')">
+          <span>${esc(oname)}</span>
+          <span class="neighbor-code">#${esc(l._other)}</span></div>`;
+      });
+      html += '</div>';
+    }
+
+    // Peers
+    if(peers.length){
+      html += `<div class="conn-group">
+        <div class="conn-group-label conn-peer">↔ Peers <span class="conn-count">(${peers.length})</span></div>`;
+      peers.forEach(l => {
+        const other = industriesData.find(i => i.RepCode === l._other);
+        const oname = other ? other.NameEnglish : l._other;
+        html += `<div class="neighbor-item peer" onclick="selectIndustry('${esc(l._other)}')">
+          <span>${esc(oname)}</span>
+          <span class="neighbor-code">#${esc(l._other)}</span></div>`;
+      });
+      html += '</div>';
+    }
+
+    // Downstream
+    if(downstream.length){
+      html += `<div class="conn-group">
+        <div class="conn-group-label conn-downstream">▼ Downstream <span class="conn-count">(${downstream.length})</span></div>`;
+      downstream.forEach(l => {
+        const other = industriesData.find(i => i.RepCode === l._other);
+        const oname = other ? other.NameEnglish : l._other;
+        html += `<div class="neighbor-item downstream" onclick="selectIndustry('${esc(l._other)}')">
+          <span>${esc(oname)}</span>
+          <span class="neighbor-code">#${esc(l._other)}</span></div>`;
+      });
+      html += '</div>';
+    }
+  }
+
+  document.getElementById('infoBox').innerHTML = html;
+}
+
+// ── Collapsible toggle ──────────────────────────────────────────────────────
+function toggleText(id, btn){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(el.classList.contains('collapsed')){
+    el.classList.replace('collapsed','expanded');
+    btn.textContent = 'Show less ▲';
+  } else {
+    el.classList.replace('expanded','collapsed');
+    btn.textContent = 'Show more ▼';
+  }
+}
+
+// ── Get links for a RepCode ─────────────────────────────────────────────────
+function getLinks(repCode){
+  const dirFilter = document.getElementById('filterDir').value;
+  const strFilter = parseInt(document.getElementById('filterStr').value) || 1;
+
+  const result = [];
+  linksData.forEach(l => {
+    if((l.StrengthScore || 1) < strFilter) return;
+    let dir = null, other = null;
+    if(l.FromIndustryCode === repCode){
+      dir   = l.Direction || 'Peer';
+      other = l.ToIndustryCode;
+    } else if(l.ToIndustryCode === repCode){
+      // reverse direction
+      if(l.Direction === 'Downstream') dir = 'Upstream';
+      else if(l.Direction === 'Upstream') dir = 'Downstream';
+      else dir = l.Direction || 'Peer';
+      other = l.FromIndustryCode;
+    }
+    if(!dir) return;
+    if(dirFilter !== 'all' && dir !== dirFilter) return;
+    result.push({ ...l, _dir: dir, _other: other });
+  });
+  return result;
+}
+
+// ── GRAPH BUILDER ────────────────────────────────────────────────────────────
+function buildGraph(repCode){
+  const ind = industriesData.find(i => i.RepCode === repCode);
+  if(!ind) return;
+
+  const links = getLinks(repCode);
+
+  // Nodes
+  const nodesArr = [{
+    id:    repCode,
+    label: wrapLabel(ind.NameEnglish),
+    color: { background: sectorColor(ind.Sector), border: '#333', highlight: { background: '#fff', border: sectorColor(ind.Sector) } },
+    font:  { size: 13, color: '#fff', face: 'Segoe UI' },
+    size:  28,
+    shape: 'ellipse',
+    borderWidth: 3,
+    title: `<b>${ind.NameEnglish}</b><br/>#${repCode} | ${sectorLabel(ind.Sector)}`,
+    _repCode: repCode
+  }];
+
+  const edgesArr = [];
+  const seen = new Set([repCode]);
+
+  links.forEach(l => {
+    const other = industriesData.find(i => i.RepCode === l._other);
+    if(!other) return;
+    if(!seen.has(l._other)){
+      seen.add(l._other);
+      nodesArr.push({
+        id:    l._other,
+        label: wrapLabel(other.NameEnglish),
+        color: { background: sectorColor(other.Sector)+'bb', border: sectorColor(other.Sector), highlight: { background: '#fff', border: sectorColor(other.Sector) } },
+        font:  { size: 11, color: '#111', face: 'Segoe UI' },
+        size:  18,
+        shape: 'dot',
+        title: `<b>${other.NameEnglish}</b><br/>#${l._other} | ${sectorLabel(other.Sector)}`,
+        _repCode: l._other
+      });
+    }
+
+    const edgeColor = l._dir === 'Upstream' ? '#e6a817' : l._dir === 'Downstream' ? '#28a745' : '#17a2b8';
+    edgesArr.push({
+      from:   l._dir === 'Upstream' ? l._other : repCode,
+      to:     l._dir === 'Upstream' ? repCode  : l._other === repCode ? l._other : l._other,
+      arrows: l._dir === 'Peer' ? '' : 'to',
+      color:  { color: edgeColor, highlight: edgeColor },
+      width:  Math.max(1, (l.StrengthScore || 1)),
+      title:  l._dir,
+      dashes: l._dir === 'Peer',
+      smooth: { type: 'dynamic' }
     });
   });
 
-  const visEdges = relevantLinks.map((l,idx) => ({
-    id: idx,
-    from: l.FromIndustryCode, to: l.ToIndustryCode,
-    label: l.Direction||'',
-    arrows: l.Direction==='Peer' ? '' : 'to',
-    dashes: l.Direction==='Peer',
-    width: l.StrengthScore||1,
-    color:{
-      color: l.Direction==='Downstream' ? '#28a745' :
-             l.Direction==='Upstream'   ? '#ffc107' : '#17a2b8',
-      opacity: 0.8
-    },
-    font:{ size:10, align:'middle' },
-    title:`${l.Direction||'Related'} \u00b7 Strength: ${l.StrengthScore||'\u2013'}`
-  }));
+  const container = document.getElementById('network');
+  if(networkInstance){ networkInstance.destroy(); networkInstance = null; }
+
+  const useHierarchical = document.getElementById('layoutSel').value === 'hierarchical';
 
   const options = {
-    nodes:{ shape:'dot', font:{ face:'Segoe UI, Arial' } },
-    edges:{ smooth:{ type:'dynamic' }, font:{ face:'Segoe UI, Arial' } },
-    physics: layout==='hierarchical' ? { enabled:false } : {
-      stabilization:{ iterations:200 },
-      barnesHut:{ gravitationalConstant:-4000, springLength:120 }
+    nodes: { borderWidth: 1, shadow: true },
+    edges: { smooth: { type: 'dynamic' } },
+    interaction: { hover: true, tooltipDelay: 150, navigationButtons: true, keyboard: true },
+    physics: useHierarchical ? { enabled: false } : {
+      enabled: true,
+      stabilization: { iterations: 150 },
+      barnesHut: { gravitationalConstant: -8000, springLength: 160, springConstant: 0.04 }
     },
-    layout: layout==='hierarchical' ? {
-      hierarchical:{ direction:'UD', sortMethod:'directed', levelSeparation:120 }
-    } : {},
-    interaction:{ hover:true, tooltipDelay:200 }
+    layout: useHierarchical ? {
+      hierarchical: { enabled: true, direction: 'LR', sortMethod: 'directed', levelSeparation: 200, nodeSpacing: 100 }
+    } : { randomSeed: 42 }
   };
 
-  const container = document.getElementById('network');
-  if(networkInstance) networkInstance.destroy();
   networkInstance = new vis.Network(
     container,
-    { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) },
+    { nodes: new vis.DataSet(nodesArr), edges: new vis.DataSet(edgesArr) },
     options
   );
+
+  // ── Click on a graph node → select that industry ──
   networkInstance.on('click', params => {
-    if(params.nodes.length > 0){
-      const clicked = params.nodes[0];
-      if(clicked !== currentCode) loadGraph(clicked);
+    if(params.nodes && params.nodes.length > 0){
+      const clickedCode = params.nodes[0];
+      if(clickedCode !== currentCode){
+        selectIndustry(clickedCode);
+        searchBox.value = (industriesData.find(i => i.RepCode === clickedCode) || {}).NameEnglish || clickedCode;
+      }
     }
   });
 
-  showDetails(center, relevantLinks);
+  // ── Double-click to focus ──
+  networkInstance.on('doubleClick', params => {
+    if(params.nodes && params.nodes.length > 0){
+      networkInstance.focus(params.nodes[0], { scale: 1.4, animation: true });
+    }
+  });
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function escHtml(str){
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ── Label wrapper (max 20 chars per line) ───────────────────────────────────
+function wrapLabel(name, maxChars=20){
+  const words = String(name).split(' ');
+  const lines = []; let line = '';
+  words.forEach(w => {
+    if((line + ' ' + w).trim().length > maxChars && line){
+      lines.push(line); line = w;
+    } else {
+      line = (line + ' ' + w).trim();
+    }
+  });
+  if(line) lines.push(line);
+  return lines.slice(0,3).join('\n');
 }
 
-const CHAR_THRESHOLD = 140;
-let _toggleCounter = 0;
-
-function collapsible(text, isCode){
-  if(!text || text==='nan' || !text.trim()) return '<span class="empty-val">—</span>';
-  if(text.length <= CHAR_THRESHOLD){
-    return isCode
-      ? `<div class="orbis-box">${escHtml(text)}</div>`
-      : `<span>${escHtml(text)}</span>`;
-  }
-  const id = 'ct' + (++_toggleCounter);
-  const content = isCode
-    ? `<div class="orbis-box">${escHtml(text)}</div>`
-    : escHtml(text);
-  return `<div class="collapsible-wrap">
-    <div id="${id}" class="ctext collapsed">${content}</div>
-    <span class="toggle-btn" onclick="toggleField('${id}',this)">&#9660; Show more</span>
-  </div>`;
-}
-
-function toggleField(id, btn){
-  const el = document.getElementById(id);
-  if(!el) return;
-  const isCol = el.classList.contains('collapsed');
-  el.classList.toggle('collapsed', !isCol);
-  el.classList.toggle('expanded',   isCol);
-  btn.innerHTML = isCol ? '&#9650; Show less' : '&#9660; Show more';
-}
-
-function atecoChips(raw){
-  if(!raw||!raw.trim()) return '<span class="empty-val">—</span>';
-  return raw.split(',').map(c=>c.trim()).filter(Boolean)
-    .map(c=>`<span class="ateco-chip">${escHtml(c)}</span>`).join(' ');
-}
-
-function kwTags(raw){
-  if(!raw||!raw.trim()) return '<span class="empty-val">—</span>';
-  return raw.split(',').map(k=>k.trim()).filter(Boolean)
-    .map(k=>`<span class="kw-tag">${escHtml(k)}</span>`).join(' ');
-}
-
-function row(label, html){
-  return `<div class="d-row"><div class="d-label">${label}</div><div class="d-val">${html}</div></div>`;
-}
-
-function section(title){
-  return `<div class="d-section">${title}</div>`;
-}
-
-// ── Detail panel ───────────────────────────────────────────────────────────
-function showDetails(ind, links){
-  const upstream   = links.filter(l => l.ToIndustryCode   === ind.RepCode && l.Direction==='Downstream');
-  const downstream = links.filter(l => l.FromIndustryCode === ind.RepCode && l.Direction==='Downstream');
-  const peers      = links.filter(l => l.Direction==='Peer');
-
-  function neighborList(arr, codeField, label, cls){
-    if(!arr.length) return '';
-    return `<div class="neighbors"><strong>${label}</strong>`+
-      arr.map(l => {
-        const nc = l[codeField];
-        const ni = industriesData.find(i => i.RepCode===nc);
-        return `<div class="neighbor-item" onclick="loadGraph('${nc}')">
-          ${ni ? escHtml(ni.NameEnglish) : nc}
-          <span class="tag ${cls}">${l.StrengthScore||'\u2013'}</span>
-        </div>`;
-      }).join('')+
-    '</div>';
-  }
-
-  const sc = sectorColor(ind.Sector);
-  const priorityClass = {'High':'priority-high','Medium':'priority-med','Low':'priority-low'}[ind.Priority]||'priority-med';
-
-  document.getElementById('infoBox').innerHTML = `
-    <div class="d-header">
-      <div class="d-repcode">${escHtml(ind.RepCode)}</div>
-      ${ind.Priority ? `<span class="priority-badge ${priorityClass}">${ind.Priority}</span>` : ''}
-    </div>
-    <div class="d-title">${escHtml(ind.NameEnglish)}</div>
-    ${ind.NameNative && ind.NameNative !== ind.NameEnglish && ind.NameNative !== 'nan'
-      ? `<div class="d-native">${escHtml(ind.NameNative)}</div>` : ''}
-    <div class="sector-pill" style="background:${sc}22;border:1px solid ${sc};color:${sc};">
-      ${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'\u2013')}
-    </div>
-    ${section('&#128196; Classification')}
-    ${row('RepCode',         `<code>${escHtml(ind.RepCode)}</code>`)}
-    ${row('Priority',        `<span class="priority-badge ${priorityClass}">${escHtml(ind.Priority||'—')}</span>`)}
-    ${row('Sector',          `<span class="sector-badge" style="background:${sc}22;border:1px solid ${sc};color:${sc};">${escHtml(SECTOR_LABELS[ind.Sector]||ind.Sector||'—')}</span>`)}
-    ${row('ATECO primary',   `<span class="ateco-chip">${escHtml(ind.ATECOPrimary||'—')}</span>`)}
-    ${row('ATECO all',       atecoChips(ind.ATECOAll))}
-    ${section('&#128214; Definition')}
-    ${row('Report (EN)',     collapsible(ind.ReportDefinitionEN, false))}
-    ${row('Marketing (EN)', collapsible(ind.MarketingDefinitionEN, false))}
-    ${section('&#128269; Search Intelligence')}
-    ${row('Keywords (EN)',   kwTags(ind.KeywordsIncludeEN))}
-    ${row('Keywords (IT)',   kwTags(ind.KeywordsIncludeIT))}
-    ${row('Orbis Boolean',   collapsible(ind.OrbisBoolean, true))}
-    ${section('&#127968; Associations')}
-    ${row('Trade assoc.',   collapsible(ind.TradeAssociations, false))}
-    ${row('Adjacent',       kwTags(ind.AdjacentIndustries))}
-    ${section('&#128279; Value Chain Links')}
-    ${neighborList(upstream,   'FromIndustryCode', '&#11014; Upstream',   'dir-upstream')}
-    ${neighborList(downstream, 'ToIndustryCode',   '&#11015; Downstream', 'dir-downstream')}
-    ${neighborList(peers,      'ToIndustryCode',   '&#8596; Peers',       'dir-peer')}
-    ${!upstream.length && !downstream.length && !peers.length
-      ? '<div class="no-links">No linked industries in current filters.</div>' : ''}
-  `;
-}
-
-['filterDir','filterStr','layoutSel'].forEach(id =>
-  document.getElementById(id).addEventListener('change', () => {
-    if(currentCode) loadGraph(currentCode);
-  })
-);
-
+// ── Bootstrap ───────────────────────────────────────────────────────────────
 loadData();
