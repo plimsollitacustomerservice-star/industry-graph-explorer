@@ -1,0 +1,21 @@
+{
+  "source": "Eurostat NAIO_10_CP1750",
+  "geo": "EA20",
+  "year": 2023,
+  "unit": "MIO_EUR",
+  "stk_flow": "TOTAL",
+  "description": "Symmetric Input-Output Table at basic prices (industry by industry), Euro Area 20, 2023. Total flows (domestic + imports).",
+  "generated": "2026-03-12",
+  "files": {
+    "nodes": "ea20_iot_nodes.json",
+    "links": "ea20_iot_links.json",
+    "sector_links": "ea20_iot_sector_links.json",
+    "gva": "ea20_iot_gva.json"
+  },
+  "stats": {
+    "n_nodes": 67,
+    "n_links": 4225,
+    "n_sector_links": 72,
+    "n_gva_entries": 64
+  }
+}
