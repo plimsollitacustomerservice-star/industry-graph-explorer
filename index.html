@@ -7,282 +7,246 @@
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f0f2f5; }
+    *  { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#0d1117; color:#e6edf3; }
 
-    /* ── Top bar ── */
+    /* ── TOP BAR ── */
     #topbar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 16px;
-      background: #1a2e4a; color: #fff;
-      position: relative; z-index: 100;
+      display:flex; align-items:center; gap:10px;
+      padding:9px 16px;
+      background:#161b22; border-bottom:1px solid #30363d;
+      position:relative; z-index:200;
     }
-    #topbar h1 { font-size: 16px; margin: 0; white-space: nowrap; }
-    #searchWrap { position: relative; flex: 1; max-width: 440px; }
+    #topbar h1 { font-size:15px; white-space:nowrap; color:#58a6ff; letter-spacing:.02em; }
+    #searchWrap { position:relative; flex:1; max-width:440px; }
     #searchBox {
-      width: 100%; padding: 7px 12px;
-      border: none; border-radius: 4px; font-size: 14px;
+      width:100%; padding:7px 12px;
+      background:#21262d; border:1px solid #30363d; border-radius:6px;
+      color:#e6edf3; font-size:14px; outline:none;
     }
+    #searchBox:focus { border-color:#58a6ff; box-shadow:0 0 0 3px #58a6ff33; }
     #results {
-      display: none;
-      position: absolute; top: 34px; left: 0; width: 100%;
-      background: #fff; border: 1px solid #ccc;
-      border-radius: 0 0 4px 4px;
-      max-height: 280px; overflow-y: auto;
-      z-index: 300; box-shadow: 0 4px 12px rgba(0,0,0,.2);
+      display:none; position:absolute; top:36px; left:0; width:100%;
+      background:#21262d; border:1px solid #30363d; border-radius:0 0 6px 6px;
+      max-height:300px; overflow-y:auto; z-index:400;
+      box-shadow:0 8px 24px rgba(0,0,0,.5);
     }
-    #results div { padding: 8px 12px; cursor: pointer; font-size: 13px; color: #222; border-bottom: 1px solid #f0f0f0; }
-    #results div:hover { background: #e8f0fe; }
-    .res-code { font-weight: bold; color: #1a2e4a; }
-    .res-name { color: #555; }
-    .res-sector { float: right; font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-top: 1px; font-weight: 700; }
+    #results div { padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #30363d; }
+    #results div:hover { background:#30363d; }
+    .res-code { font-weight:700; color:#58a6ff; }
+    .res-name { color:#8b949e; }
+    .res-sector { float:right; font-size:10px; padding:1px 6px; border-radius:8px; font-weight:700; margin-top:2px; }
 
-    /* ── Reset button ── */
-    #resetBtn {
-      padding: 7px 14px; border: none; border-radius: 4px;
-      background: #e05c5c; color: #fff; font-size: 13px; font-weight: 700;
-      cursor: pointer; white-space: nowrap; letter-spacing: 0.03em;
-      transition: background .15s;
+    /* ── TOOLBAR BUTTONS ── */
+    .tb-btn {
+      padding:6px 12px; border:1px solid #30363d; border-radius:6px;
+      background:#21262d; color:#e6edf3; font-size:12px; font-weight:600;
+      cursor:pointer; white-space:nowrap; transition:background .15s,border-color .15s;
     }
-    #resetBtn:hover { background: #c0392b; }
-    #statsLabel { font-size: 12px; opacity: .7; white-space: nowrap; }
+    .tb-btn:hover { background:#30363d; border-color:#58a6ff; }
+    #resetBtn  { border-color:#f85149; color:#f85149; }
+    #resetBtn:hover { background:#f8514922; }
+    #drawBtn   { border-color:#3fb950; color:#3fb950; }
+    #drawBtn:hover { background:#3fb95022; }
+    #physicsBtn { border-color:#bc8cff; color:#bc8cff; }
+    #physicsBtn:hover { background:#bc8cff22; }
+    #statsLabel { font-size:11px; color:#8b949e; white-space:nowrap; }
 
-    /* ── Filter bar ── */
+    /* ── FILTER BAR ── */
     #filterbar {
-      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-      padding: 6px 16px;
-      background: #253d5e; color: #cfd8e3; font-size: 13px;
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      padding:5px 16px; background:#161b22; border-bottom:1px solid #30363d;
+      font-size:12px; color:#8b949e;
     }
-    #filterbar label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    #filterbar label { display:flex; align-items:center; gap:5px; }
     #filterbar select {
-      padding: 3px 6px; border-radius: 3px;
-      border: 1px solid #4a6480;
-      background: #1a2e4a; color: #fff; font-size: 13px;
+      padding:3px 6px; border-radius:4px;
+      background:#21262d; border:1px solid #30363d; color:#e6edf3; font-size:12px;
     }
-    #currentIndustry { margin-left: auto; font-weight: bold; color: #a0c4ff; font-size: 13px; }
+    #currentIndustry { margin-left:auto; font-weight:700; color:#58a6ff; font-size:12px; }
 
-    /* ── Main layout ── */
-    #main { display: flex; height: calc(100vh - 92px); overflow: hidden; }
+    /* ── MAIN LAYOUT ── */
+    #main { display:flex; height:calc(100vh - 80px); overflow:hidden; }
 
-    /* ── Sidebar ── */
+    /* ── SIDEBAR ── */
     #sidebar {
-      width: 340px; min-width: 260px; max-width: 400px;
-      background: #fff; border-right: 2px solid #dde;
-      overflow-y: auto; font-size: 13px; flex-shrink: 0;
+      width:330px; min-width:260px;
+      background:#161b22; border-right:1px solid #30363d;
+      display:flex; flex-direction:column; overflow:hidden; flex-shrink:0;
     }
     #sidebarHeader {
-      position: sticky; top: 0; z-index: 10;
-      background: #1a2e4a; color: #fff;
-      padding: 10px 14px;
-      display: flex; align-items: center; justify-content: space-between;
+      padding:10px 14px; background:#21262d;
+      border-bottom:1px solid #30363d; font-size:13px; font-weight:700; color:#58a6ff;
+      flex-shrink:0;
     }
-    #sidebarHeader h2 { margin: 0; font-size: 14px; }
+    #infoBox { padding:14px; overflow-y:auto; flex:1; font-size:13px; }
+    #emptyMsg { color:#484f58; font-style:italic; text-align:center; padding:30px 0; }
 
-    #infoBox { padding: 14px 14px 20px; color: #333; line-height: 1.6; }
-    #emptyMsg { color: #aaa; font-style: italic; font-size: 13px; padding: 20px 0; text-align: center; }
+    /* ── DETAIL CARD STYLES ── */
+    .d-repcode { display:inline-block; font-size:11px; font-weight:700;
+      background:#1f3a5e; color:#58a6ff; padding:2px 9px; border-radius:10px; margin-bottom:6px; }
+    .d-title   { font-size:15px; font-weight:700; color:#e6edf3; margin:4px 0 2px; line-height:1.35; }
+    .d-native  { font-size:12px; color:#6e7681; font-style:italic; margin-bottom:10px; }
+    .sector-pill { display:inline-block; padding:3px 11px; border-radius:12px;
+      font-size:11px; font-weight:700; margin-bottom:12px; }
+    .d-badges  { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+    .priority-badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
+    .priority-high { background:#3d1a1a; color:#f85149; border:1px solid #f8514955; }
+    .priority-med  { background:#3d2d00; color:#d29922; border:1px solid #d2992255; }
+    .priority-low  { background:#0f2d1a; color:#3fb950; border:1px solid #3fb95055; }
+    .status-badge  { display:inline-block; padding:2px 9px; border-radius:10px;
+      font-size:11px; font-weight:700; background:#1c2d3e; color:#79c0ff; border:1px solid #2d4f7a; }
+    .d-section { font-size:10px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.1em; color:#484f58; border-top:1px solid #21262d;
+      margin:14px 0 8px; padding-top:8px; }
+    .d-row   { display:flex; gap:6px; margin-bottom:7px; align-items:flex-start; }
+    .d-label { flex:0 0 110px; font-size:11px; font-weight:600; color:#6e7681; padding-top:1px; }
+    .d-val   { flex:1; font-size:12px; color:#c9d1d9; line-height:1.6; word-break:break-word; }
+    .empty-val { color:#484f58; font-style:italic; }
+    .ateco-chip { display:inline-block; background:#1c2d3e; border:1px solid #2d4f7a;
+      border-radius:4px; padding:1px 7px; font-size:11px; font-family:monospace;
+      color:#79c0ff; margin:2px 2px 2px 0; }
+    .kw-tag { display:inline-block; background:#0d2818; border:1px solid #2ea043;
+      border-radius:10px; padding:1px 8px; font-size:11px; color:#3fb950; margin:2px 2px 2px 0; }
+    .orbis-box { background:#010409; color:#56d364; font-family:'Courier New',monospace;
+      font-size:11px; padding:8px 10px; border-radius:6px; white-space:pre-wrap;
+      word-break:break-all; line-height:1.6; max-height:120px; overflow-y:auto;
+      border:1px solid #21262d; }
+    .collapsible-wrap { position:relative; }
+    .ctext.collapsed { max-height:60px; overflow:hidden;
+      -webkit-mask-image:linear-gradient(180deg,#000 40%,transparent);
+      mask-image:linear-gradient(180deg,#000 40%,transparent); }
+    .ctext.expanded  { max-height:none; }
+    .toggle-btn { display:inline-block; margin-top:4px; font-size:11px;
+      color:#58a6ff; cursor:pointer; font-weight:600; user-select:none; }
+    .toggle-btn:hover { text-decoration:underline; }
 
-    /* Detail card */
-    .d-repcode {
-      display: inline-block; font-size: 11px; font-weight: 700;
-      background: #1a2e4a; color: #a0c4ff;
-      padding: 2px 9px; border-radius: 10px; margin-bottom: 6px;
-    }
-    .d-title {
-      font-size: 16px; font-weight: 700; color: #1a2e4a;
-      margin: 4px 0 2px; line-height: 1.35;
-    }
-    .d-native { font-size: 12px; color: #888; font-style: italic; margin-bottom: 10px; }
-    .sector-pill {
-      display: inline-block; padding: 3px 11px;
-      border-radius: 12px; font-size: 11px; font-weight: 700;
-      margin-bottom: 14px; letter-spacing: 0.03em;
-    }
-    .d-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-    .priority-badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; }
-    .priority-high { background: #fde8e8; color: #c0392b; border: 1px solid #f5b7b1; }
-    .priority-med  { background: #fef9e7; color: #b7950b; border: 1px solid #f9e79f; }
-    .priority-low  { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; }
-    .status-badge {
-      display: inline-block; padding: 2px 9px; border-radius: 10px;
-      font-size: 11px; font-weight: 700;
-      background: #e8f4fd; color: #1a5276; border: 1px solid #aed6f1;
-    }
-
-    /* Sections */
-    .d-section {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #1a2e4a;
-      border-top: 2px solid #e8ecf5;
-      margin: 16px 0 8px; padding-top: 8px;
-    }
-    .d-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: flex-start; }
-    .d-label {
-      flex: 0 0 118px; font-size: 11px; font-weight: 600;
-      color: #666; padding-top: 1px; line-height: 1.5;
-    }
-    .d-val { flex: 1; font-size: 12px; color: #222; line-height: 1.6; word-break: break-word; }
-    .empty-val { color: #bbb; font-style: italic; }
-
-    /* ATECO chips */
-    .ateco-chip {
-      display: inline-block;
-      background: #eef2ff; border: 1px solid #c0ccff;
-      border-radius: 4px; padding: 1px 7px;
-      font-size: 11px; font-family: monospace;
-      color: #1a2e4a; margin: 2px 2px 2px 0;
-    }
-
-    /* Keyword tags */
-    .kw-tag {
-      display: inline-block;
-      background: #f0f8f0; border: 1px solid #b2d8b2;
-      border-radius: 10px; padding: 1px 8px;
-      font-size: 11px; color: #2d6a2d; margin: 2px 2px 2px 0;
-    }
-
-    /* Orbis Boolean box */
-    .orbis-box {
-      background: #111827; color: #7ee8a2;
-      font-family: 'Courier New', monospace; font-size: 11px;
-      padding: 8px 10px; border-radius: 6px;
-      white-space: pre-wrap; word-break: break-all;
-      line-height: 1.6; max-height: 120px; overflow-y: auto;
-    }
-
-    /* Collapsible text */
-    .collapsible-wrap { position: relative; }
-    .ctext.collapsed {
-      max-height: 60px; overflow: hidden;
-      -webkit-mask-image: linear-gradient(180deg, #000 50%, transparent 100%);
-      mask-image: linear-gradient(180deg, #000 50%, transparent 100%);
-    }
-    .ctext.expanded { max-height: none; }
-    .toggle-btn {
-      display: inline-block; margin-top: 4px;
-      font-size: 11px; color: #3a86ff;
-      cursor: pointer; font-weight: 600; user-select: none;
-    }
-    .toggle-btn:hover { text-decoration: underline; }
-
-    /* ── Connection sections ── */
-    .conn-group { margin-bottom: 10px; }
-    .conn-group-label {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.07em; padding: 4px 8px;
-      border-radius: 4px; margin-bottom: 5px;
-      display: flex; align-items: center; gap: 5px;
-    }
-    .conn-upstream   { background: #fff8e1; color: #7d5a00; }
-    .conn-peer       { background: #e0f7fa; color: #00565f; }
-    .conn-downstream { background: #e8f5e9; color: #1b5e20; }
-    .conn-count { font-weight: 400; opacity: .7; }
-
+    /* ── CONNECTION GROUPS ── */
+    .conn-group { margin-bottom:10px; }
+    .conn-group-label { font-size:11px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.07em; padding:4px 8px; border-radius:4px;
+      margin-bottom:5px; display:flex; align-items:center; gap:5px; }
+    .conn-upstream   { background:#2d2000; color:#d29922; }
+    .conn-peer       { background:#001d3d; color:#58a6ff; }
+    .conn-downstream { background:#0d2818; color:#3fb950; }
+    .conn-count      { font-weight:400; opacity:.7; }
     .neighbor-item {
-      padding: 6px 9px; margin: 3px 0;
-      background: #f5f7ff; border-radius: 4px;
-      cursor: pointer; font-size: 12px; color: #1a2e4a;
-      border-left: 3px solid #4a90d9;
-      transition: background .1s;
-      display: flex; align-items: center; justify-content: space-between;
+      padding:6px 9px; margin:3px 0;
+      background:#21262d; border-radius:4px;
+      cursor:pointer; font-size:12px; color:#c9d1d9;
+      border-left:3px solid #30363d;
+      transition:background .1s;
+      display:flex; align-items:center; justify-content:space-between;
     }
-    .neighbor-item:hover { background: #dce8ff; }
-    .neighbor-item.upstream   { border-left-color: #e6a817; }
-    .neighbor-item.peer       { border-left-color: #17a2b8; }
-    .neighbor-item.downstream { border-left-color: #28a745; }
-    .neighbor-code { font-size: 10px; color: #888; margin-left: 6px; white-space: nowrap; }
-    .no-links { color: #bbb; font-size: 12px; font-style: italic; padding: 4px 0; }
+    .neighbor-item:hover { background:#30363d; }
+    .neighbor-item.upstream   { border-left-color:#d29922; }
+    .neighbor-item.peer       { border-left-color:#58a6ff; }
+    .neighbor-item.downstream { border-left-color:#3fb950; }
+    .neighbor-code { font-size:10px; color:#484f58; margin-left:6px; white-space:nowrap; }
+    .no-links { color:#484f58; font-size:12px; font-style:italic; padding:4px 0; }
+    .ctx-btn { padding:6px 12px; border-radius:4px; border:1px solid #30363d;
+      background:#21262d; color:#e6edf3; font-size:12px; cursor:pointer; margin-top:4px; }
+    .ctx-btn:hover { background:#30363d; }
+    .ctx-danger { border-color:#f85149; color:#f85149; }
+    .ctx-danger:hover { background:#f8514922; }
 
-    /* ── Graph canvas ── */
-    #network { flex: 1; background: #fafbff; position: relative; min-width: 0; }
-    #emptyState {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center; color: #bbb; pointer-events: none;
+    /* ── GRAPH CANVAS ── */
+    #network { flex:1; background:#0d1117; position:relative; min-width:0; }
+    #emptyState { position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%); text-align:center; color:#484f58; pointer-events:none; }
+    #emptyState h2 { font-size:40px; margin-bottom:12px; }
+    #emptyState p  { font-size:14px; }
+
+    /* ── CONTEXT MENU ── */
+    #ctxMenu {
+      display:none; position:fixed; z-index:500;
+      background:#21262d; border:1px solid #30363d; border-radius:8px;
+      min-width:190px; padding:6px 0;
+      box-shadow:0 8px 24px rgba(0,0,0,.6);
+      font-size:13px;
     }
-    #emptyState h2 { font-size: 32px; margin-bottom: 10px; }
-    #emptyState p  { font-size: 14px; }
+    .ctx-title { padding:6px 14px; font-weight:700; color:#58a6ff;
+      border-bottom:1px solid #30363d; margin-bottom:4px; font-size:12px; }
+    .ctx-item  { padding:7px 14px; cursor:pointer; color:#c9d1d9; }
+    .ctx-item:hover { background:#30363d; }
+    .ctx-item.ctx-danger { color:#f85149; }
+    .ctx-item.ctx-danger:hover { background:#f8514922; }
 
-    /* ── Legend ── */
+    /* ── LEGEND ── */
     #legend {
-      position: absolute; bottom: 16px; right: 16px;
-      background: rgba(255,255,255,.95); border: 1px solid #dde;
-      border-radius: 6px; padding: 10px 14px;
-      font-size: 12px; z-index: 50;
-      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      position:absolute; bottom:16px; right:16px;
+      background:#161b22cc; border:1px solid #30363d;
+      border-radius:6px; padding:10px 14px; font-size:11px; z-index:50;
+      backdrop-filter:blur(6px);
     }
-    #legend h3 { margin: 0 0 6px; font-size: 12px; color: #1a2e4a; }
-    .leg-row { display: flex; align-items: center; gap: 7px; margin: 4px 0; }
-    .leg-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    #legend h3 { margin:0 0 7px; font-size:11px; color:#58a6ff; text-transform:uppercase; letter-spacing:.08em; }
+    .leg-row { display:flex; align-items:center; gap:7px; margin:4px 0; color:#8b949e; }
+    .leg-line { width:20px; height:3px; border-radius:2px; flex-shrink:0; }
   </style>
 </head>
 <body>
 
-<!-- ── TOP BAR ── -->
+<!-- TOP BAR -->
 <div id="topbar">
-  <h1>🔗 Industry Graph Explorer</h1>
+  <h1>🕸 Industry Graph Explorer</h1>
   <div id="searchWrap">
-    <input id="searchBox" type="text" placeholder="Search by name, code, ATECO or keyword…" autocomplete="off" />
+    <input id="searchBox" type="text" placeholder="Search industry, code, ATECO, keyword…" autocomplete="off" />
     <div id="results"></div>
   </div>
-  <button id="resetBtn" title="Clear and start a new search">↺ Reset</button>
+  <button class="tb-btn" id="drawBtn"   onclick="toggleDrawMode()">✏ Add Connection</button>
+  <button class="tb-btn" id="physicsBtn" onclick="togglePhysics()">▶ Physics OFF</button>
+  <button class="tb-btn" id="resetBtn">↺ Reset</button>
   <span id="statsLabel"></span>
 </div>
 
-<!-- ── FILTER BAR ── -->
+<!-- FILTER BAR -->
 <div id="filterbar">
   <label>Direction:
     <select id="filterDir">
-      <option value="all">All connections</option>
-      <option value="Upstream">Upstream only</option>
-      <option value="Peer">Peer only</option>
-      <option value="Downstream">Downstream only</option>
+      <option value="all">All</option>
+      <option value="Upstream">Upstream</option>
+      <option value="Peer">Peer</option>
+      <option value="Downstream">Downstream</option>
     </select>
   </label>
   <label>Min strength:
     <select id="filterStr">
-      <option value="1">Strength 1+</option>
-      <option value="2">Strength 2+</option>
-      <option value="3">Strength 3+</option>
-      <option value="4">Strength 4+</option>
-      <option value="5">Strength 5</option>
-    </select>
-  </label>
-  <label>Layout:
-    <select id="layoutSel">
-      <option value="physics">Force-directed</option>
-      <option value="hierarchical">Hierarchical</option>
+      <option value="1">1+</option>
+      <option value="2">2+</option>
+      <option value="3">3+</option>
+      <option value="4">4+</option>
+      <option value="5">5 only</option>
     </select>
   </label>
   <span id="currentIndustry"></span>
 </div>
 
-<!-- ── MAIN ── -->
+<!-- MAIN -->
 <div id="main">
-
-  <!-- Sidebar -->
   <div id="sidebar">
-    <div id="sidebarHeader"><h2>📋 Industry Details</h2></div>
+    <div id="sidebarHeader">📋 Industry Details</div>
     <div id="infoBox">
-      <div id="emptyMsg">Search for an industry above to begin.</div>
+      <div id="emptyMsg">Search or click a node to explore.</div>
     </div>
   </div>
-
-  <!-- Graph -->
   <div id="network">
     <div id="emptyState">
-      <h2>🏭</h2>
-      <p>Search for an industry<br/>to explore its connections.</p>
+      <h2>🕸</h2>
+      <p>Loading industry web…</p>
     </div>
   </div>
-
 </div>
 
-<!-- ── LEGEND ── -->
+<!-- CONTEXT MENU -->
+<div id="ctxMenu"></div>
+
+<!-- LEGEND -->
 <div id="legend">
   <h3>Connection type</h3>
-  <div class="leg-row"><span style="width:18px;height:4px;background:#e6a817;display:inline-block;border-radius:2px;"></span> Upstream (supplies to this)</div>
-  <div class="leg-row"><span style="width:18px;height:4px;background:#17a2b8;display:inline-block;border-radius:2px;"></span> Peer / adjacent</div>
-  <div class="leg-row"><span style="width:18px;height:4px;background:#28a745;display:inline-block;border-radius:2px;"></span> Downstream (this supplies)</div>
+  <div class="leg-row"><div class="leg-line" style="background:#d29922"></div> Upstream</div>
+  <div class="leg-row"><div class="leg-line" style="background:#58a6ff;border:1px dashed #58a6ff"></div> Peer</div>
+  <div class="leg-row"><div class="leg-line" style="background:#3fb950"></div> Downstream</div>
+  <div class="leg-row" style="margin-top:8px;font-size:10px;color:#484f58;">Right-click any node/edge</div>
 </div>
 
 <script src="app.js"></script>
