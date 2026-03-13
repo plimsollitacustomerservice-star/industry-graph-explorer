@@ -24,6 +24,24 @@ let drawFrom        = null;
 let deletedEdges    = new Set();
 let addedEdges      = [];
 
+// ── fast lookup maps ──────────────────────────────────────────────────────────
+let indByCode   = new Map();   // RepCode -> industry
+let linksByCode = new Map();   // RepCode -> array of links touching this code
+
+function registerIndustry(ind){
+  indByCode.set(ind.RepCode, ind);
+}
+
+function registerLink(link){
+  if (!link._id) {
+    link._id = `l_${link.FromIndustryCode}_${link.ToIndustryCode}_${linksData.length}`;
+  }
+  if (!linksByCode.has(link.FromIndustryCode)) linksByCode.set(link.FromIndustryCode, []);
+  if (!linksByCode.has(link.ToIndustryCode))   linksByCode.set(link.ToIndustryCode, []);
+  linksByCode.get(link.FromIndustryCode).push(link);
+  linksByCode.get(link.ToIndustryCode).push(link);
+}
+
 // ── IOT state ─────────────────────────────────────────────────────────────────
 let iotMode         = false;
 let iotNodes        = [];   // ea20_iot_nodes.json
@@ -64,7 +82,9 @@ const IOT_SECTOR_COLORS = {
 const iotColor = s => IOT_SECTOR_COLORS[s] || '#7F8C8D';
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
-const esc   = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc   = s => String(s||'').replace(/&/g,'&amp;')
+                                .replace(/</g,'&lt;')
+                                .replace(/>/g,'&gt;');
 const empty = v => { if(!v) return true; const s=String(v).trim(); return !s||s==='undefined'||s==='null'||s==='None'; };
 const val   = (v,f='') => empty(v) ? f : String(v).trim();
 const fmtBn = v => v >= 1000 ? (v/1000).toFixed(1)+'T€' : v.toFixed(0)+'B€';
@@ -85,6 +105,28 @@ async function loadData(){
     ]);
     industriesData = iRes.flat();
     linksData      = lRes.flat();
+
+    // build lookup maps + search blobs
+    indByCode   = new Map();
+    linksByCode = new Map();
+    industriesData.forEach(ind => {
+      registerIndustry(ind);
+      const parts = [
+        ind.RepCode || '',
+        ind.NameEnglish || '',
+        ind.NameNative || '',
+        ind.ATECOPrimary || '',
+        ind.ATECOAll || '',
+        ind.KeywordsIncludeEN || '',
+        ind.KeywordsIncludeIT || ''
+      ];
+      ind._searchBlob = parts.join(' ').toLowerCase();
+    });
+    linksData.forEach((l, idx) => {
+      l._id = l._id || `l_${idx}`;
+      registerLink(l);
+    });
+
     statsEl.textContent = `${industriesData.length.toLocaleString()} industries · ${linksData.length.toLocaleString()} links`;
     buildSpiderweb();
   } catch(e){
@@ -191,7 +233,7 @@ function drawIotSpiderweb(){
   });
 
   // ── Compute max flow for scaling ──
-  const maxFlow = Math.max(...iotSectorLinks.map(l => l.value_bn));
+  const maxFlow = Math.max(...iotSectorLinks.map(l => l.value_bn || 0)) || 1;
 
   // ── Draw flow lines ──
   iotSectorLinks.forEach(link => {
@@ -203,7 +245,7 @@ function drawIotSpiderweb(){
                       iotHovered  === link.source || iotHovered  === link.target);
     const isSelected = (iotSelected && (iotSelected===link.source || iotSelected===link.target));
 
-    const t = link.value_bn / maxFlow;
+    const t = (link.value_bn || 0) / maxFlow;
     const alpha = isActive ? 0.8 : (iotSelected ? 0.06 : 0.18 + t*0.45);
     const lineW = isActive ? 1.5 + t*14 : 0.5 + t*10;
 
@@ -231,7 +273,7 @@ function drawIotSpiderweb(){
     if(isActive || t > 0.3){
       const dx  = to.x - from.x;
       const dy  = to.y - from.y;
-      const len = Math.sqrt(dx*dx+dy*dy);
+      const len = Math.sqrt(dx*dx+dy*dy) || 1;
       const ux  = dx/len; const uy = dy/len;
       const mx  = (from.x+to.x)/2; const my=(from.y+to.y)/2;
       const aSize = isActive ? 8 : 5;
@@ -301,12 +343,14 @@ function drawIotSpiderweb(){
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   if(iotSelected){
-    // show selected sector total supply/use
-    const node = iotNodes.find(n => n.sector === iotSelected);
-    const supplyTotal = iotNodes.filter(n=>n.sector===iotSelected).reduce((s,n)=>s+n.total_supply_mio_eur,0);
-    const useTotal    = iotNodes.filter(n=>n.sector===iotSelected).reduce((s,n)=>s+n.total_use_mio_eur,0);
-    const outFlows    = iotSectorLinks.filter(l=>l.source===iotSelected).reduce((s,l)=>s+l.value_bn,0);
-    const inFlows     = iotSectorLinks.filter(l=>l.target===iotSelected).reduce((s,l)=>s+l.value_bn,0);
+    const supplyTotal = iotNodes.filter(n=>n.sector===iotSelected)
+      .reduce((s,n)=>s+(n.total_supply_mio_eur||0),0);
+    const useTotal    = iotNodes.filter(n=>n.sector===iotSelected)
+      .reduce((s,n)=>s+(n.total_use_mio_eur||0),0);
+    const outFlows    = iotSectorLinks.filter(l=>l.source===iotSelected)
+      .reduce((s,l)=>s+(l.value_bn||0),0);
+    const inFlows     = iotSectorLinks.filter(l=>l.target===iotSelected)
+      .reduce((s,l)=>s+(l.value_bn||0),0);
     ctx.font      = 'bold 15px Segoe UI';
     ctx.fillStyle = iotColor(iotSelected);
     ctx.fillText(iotSelected, cx, cy - 28);
@@ -363,18 +407,20 @@ function setupIotCanvasEvents(){
     if(hit){
       const outFlows = iotSectorLinks.filter(l=>l.source===hit);
       const inFlows  = iotSectorLinks.filter(l=>l.target===hit);
-      const totalOut = outFlows.reduce((s,l)=>s+l.value_bn,0);
-      const totalIn  = inFlows.reduce((s,l)=>s+l.value_bn,0);
-      const topOut   = outFlows.sort((a,b)=>b.value_bn-a.value_bn).slice(0,3);
-      const topIn    = inFlows.sort((a,b)=>b.value_bn-a.value_bn).slice(0,3);
+      const totalOut = outFlows.reduce((s,l)=>s+(l.value_bn||0),0);
+      const totalIn  = inFlows.reduce((s,l)=>s+(l.value_bn||0),0);
+      const topOut   = [...outFlows].sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
+      const topIn    = [...inFlows].sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
       let html = `<strong>${hit}</strong><br/>`;
       html += `<span style="color:#8b949e">Total output: ${fmtBn(totalOut)}</span><br/>`;
       html += `<span style="color:#8b949e">Total input: ${fmtBn(totalIn)}</span>`;
       if(topOut.length){
-        html += `<br/><span style="color:#3fb950;font-size:11px">▶ Sells most to: `+topOut.map(l=>`${l.target} (${fmtBn(l.value_bn)})`).join(', ')+`</span>`;
+        html += `<br/><span style="color:#3fb950;font-size:11px">▶ Sells most to: `+
+          topOut.map(l=>`${l.target} (${fmtBn(l.value_bn)})`).join(', ')+`</span>`;
       }
       if(topIn.length){
-        html += `<br/><span style="color:#d29922;font-size:11px">◀ Buys most from: `+topIn.map(l=>`${l.source} (${fmtBn(l.value_bn)})`).join(', ')+`</span>`;
+        html += `<br/><span style="color:#d29922;font-size:11px">◀ Buys most from: `+
+          topIn.map(l=>`${l.source} (${fmtBn(l.value_bn)})`).join(', ')+`</span>`;
       }
       tooltip.innerHTML = html;
       tooltip.style.display = 'block';
@@ -509,7 +555,7 @@ function buildSpiderweb(){
     if(params.nodes.length > 0){
       const code = params.nodes[0];
       navigateTo(code);
-      const ind = industriesData.find(i=>i.RepCode===code);
+      const ind = indByCode.get(code);
       if(ind) searchBox.value = ind.NameEnglish;
     } else if(params.edges.length > 0 && !drawMode){
       highlightEdge(params.edges[0]);
@@ -533,7 +579,7 @@ function buildSpiderweb(){
 // SATNAV + HIGHLIGHT (existing graph)
 // ══════════════════════════════════════════════════════════════════════════════
 function navigateTo(repCode){
-  const ind = industriesData.find(i=>i.RepCode===repCode);
+  const ind = indByCode.get(repCode);
   if(!ind || !networkInstance) return;
   currentCode = repCode;
   document.getElementById('currentIndustry').textContent = ind.NameEnglish;
@@ -570,7 +616,10 @@ function pulseNode(repCode, sector){
       color:{ background:bright?sc(sector):'#ffffff', border:sc(sector),
         highlight:{background:'#fff',border:sc(sector)}, hover:{background:'#fffde7',border:sc(sector)} }
     });
-    if(tick>=6){ clearInterval(id); nodesDS.update({ id:repCode, background:'#ffffff', borderWidth:4 }); }
+    if(tick>=6){
+      clearInterval(id);
+      nodesDS.update({ id:repCode, borderWidth:4 });
+    }
   },180);
 }
 
@@ -581,7 +630,7 @@ function edgeColor(dir){
 function clearHighlight(){
   if(!nodesDS) return;
   nodesDS.forEach(n=>{
-    const ind=industriesData.find(i=>i.RepCode===n.id); if(!ind) return;
+    const ind=indByCode.get(n.id); if(!ind) return;
     nodesDS.update({ id:n.id,
       color:{ background:sc(ind.Sector)+'cc', border:sc(ind.Sector),
         highlight:{background:'#fff',border:sc(ind.Sector)}, hover:{background:'#fffde7',border:sc(ind.Sector)} },
@@ -599,8 +648,8 @@ function clearHighlight(){
 
 function highlightEdge(edgeId){
   const e=edgesDS.get(edgeId); if(!e) return;
-  const from=industriesData.find(i=>i.RepCode===e.from);
-  const to=industriesData.find(i=>i.RepCode===e.to);
+  const from=indByCode.get(e.from);
+  const to=indByCode.get(e.to);
   let html=`<div class="d-section">🔗 Edge Details</div>`;
   html+=`<div class="d-row"><span class="d-label">Type</span><span class="d-val">${esc(e._dir||e.title||'Peer')}</span></div>`;
   html+=`<div class="d-row"><span class="d-label">From</span><span class="d-val">${from?esc(from.NameEnglish):esc(e.from)}</span></div>`;
@@ -610,25 +659,32 @@ function highlightEdge(edgeId){
   document.getElementById('infoBox').innerHTML=html;
 }
 
+// ── fast getLinksFor using linksByCode ────────────────────────────────────────
 function getLinksFor(repCode){
   const dirF=document.getElementById('filterDir').value;
   const strF=parseInt(document.getElementById('filterStr').value)||1;
   const res=[];
-  linksData.forEach(l=>{
-    if((l.StrengthScore||1)<strF) return;
-    if(deletedEdges.has(l._eid)) return;
+  const arr = linksByCode.get(repCode) || [];
+  for (const l of arr){
+    if((l.StrengthScore||1)<strF) continue;
+    if(deletedEdges.has(l._eid)) continue;
+
+    const rawDir = l.Direction || 'Peer';
     let dir=null, other=null;
-    if(l.FromIndustryCode===repCode){ dir=l.Direction||'Peer'; other=l.ToIndustryCode; }
-    else if(l.ToIndustryCode===repCode){
-      if(l.Direction==='Downstream') dir='Upstream';
-      else if(l.Direction==='Upstream') dir='Downstream';
-      else dir=l.Direction||'Peer';
-      other=l.FromIndustryCode;
+
+    if(l.FromIndustryCode===repCode){
+      dir   = rawDir;
+      other = l.ToIndustryCode;
+    } else if(l.ToIndustryCode===repCode){
+      if(rawDir==='Downstream')      dir='Upstream';
+      else if(rawDir==='Upstream')   dir='Downstream';
+      else                           dir=rawDir;
+      other = l.FromIndustryCode;
     }
-    if(!dir) return;
-    if(dirF!=='all'&&dir!==dirF) return;
+    if(!dir) continue;
+    if(dirF!=='all'&&dir!==dirF) continue;
     res.push({...l, _dir:dir, _other:other});
-  });
+  }
   return res;
 }
 
@@ -667,8 +723,11 @@ function handleDrawClick(params){
       title:dirVal, _dir:dirVal, _str:3 };
     edgesDS.add(newEdge);
     addedEdges.push(newEdge);
-    linksData.push({ FromIndustryCode:drawFrom, ToIndustryCode:code, Direction:dirVal, StrengthScore:3, _eid:newId });
-    const fromInd=industriesData.find(i=>i.RepCode===drawFrom);
+    const linkObj = { FromIndustryCode:drawFrom, ToIndustryCode:code,
+                      Direction:dirVal, StrengthScore:3, _eid:newId };
+    linksData.push(linkObj);
+    registerLink(linkObj);
+    const fromInd=indByCode.get(drawFrom);
     if(fromInd) nodesDS.update({ id:drawFrom, borderWidth:1,
       color:{ background:sc(fromInd.Sector)+'cc', border:sc(fromInd.Sector),
         highlight:{background:'#fff',border:sc(fromInd.Sector)}, hover:{background:'#fffde7',border:sc(fromInd.Sector)} } });
@@ -683,7 +742,7 @@ function showContextMenu(params){
   const items=[];
   if(params.nodes.length>0){
     const code=params.nodes[0];
-    const ind=industriesData.find(i=>i.RepCode===code);
+    const ind=indByCode.get(code);
     items.push(`<div class="ctx-title">${ind?esc(ind.NameEnglish):code}</div>`);
     items.push(`<div class="ctx-item" onclick="navigateTo('${code}');hideContextMenu()">🔍 Inspect this industry</div>`);
     items.push(`<div class="ctx-item" onclick="severAllEdges('${code}');hideContextMenu()">✂ Sever ALL connections</div>`);
@@ -738,14 +797,9 @@ searchBox.addEventListener('input',()=>{
   const q=searchBox.value.trim().toLowerCase();
   resultsDiv.innerHTML='';
   if(!q){ resultsDiv.style.display='none'; return; }
-  const matches=industriesData.filter(i=>
-    i.RepCode.toLowerCase().includes(q)||
-    i.NameEnglish.toLowerCase().includes(q)||
-    (i.NameNative&&i.NameNative.toLowerCase().includes(q))||
-    (i.ATECOPrimary&&i.ATECOPrimary.includes(q))||
-    (i.ATECOAll&&i.ATECOAll.includes(q))||
-    (i.KeywordsIncludeEN&&i.KeywordsIncludeEN.toLowerCase().includes(q))
-  ).slice(0,25);
+  const matches=industriesData
+    .filter(i => i._searchBlob && i._searchBlob.includes(q))
+    .slice(0,25);
   if(!matches.length){ resultsDiv.style.display='none'; return; }
   matches.forEach(item=>{
     const div=document.createElement('div');
@@ -798,7 +852,7 @@ document.getElementById('filterStr').addEventListener('change',()=>{ if(currentC
 function renderSidebar(ind, links){
   const c=sc(ind.Sector);
   const upstream=links.filter(l=>l._dir==='Upstream');
-  const peers=links.filter(l=>l._dir==='Peer');
+  const peers    =links.filter(l=>l._dir==='Peer');
   const downstream=links.filter(l=>l._dir==='Downstream');
   let html='';
   html+=`<span class="d-repcode">#${esc(ind.RepCode)}</span>`;
@@ -812,15 +866,18 @@ function renderSidebar(ind, links){
   }
   if(!empty(ind.ValueChainStage)) html+=`<span class="status-badge">🔗 ${esc(ind.ValueChainStage)}</span>`;
   html+='</div>';
+
   html+='<div class="d-section">📌 Classification</div>';
   const allCodes=val(ind.ATECOAll)||val(ind.ATECOPrimary);
   if(allCodes){
-    const chips=allCodes.split(/[,;|\s]+/).filter(Boolean).map(c=>`<span class="ateco-chip">${esc(c.trim())}</span>`).join('');
+    const chips=allCodes.split(/[,;|\s]+/).filter(Boolean)
+      .map(c=>`<span class="ateco-chip">${esc(c.trim())}</span>`).join('');
     html+=`<div class="d-row"><span class="d-label">ATECO/NACE</span><span class="d-val">${chips}</span></div>`;
   } else {
     html+=`<div class="d-row"><span class="d-label">ATECO/NACE</span><span class="d-val empty-val">—</span></div>`;
   }
   html+=`<div class="d-row"><span class="d-label">Sector</span><span class="d-val">${esc(sl(ind.Sector))}</span></div>`;
+
   const defEN=val(ind.ReportDefinitionEN); const defMkt=val(ind.MarketingDefinitionEN);
   if(defEN.length>30||defMkt.length>30){
     html+='<div class="d-section">📝 Definition</div>';
@@ -833,34 +890,54 @@ function renderSidebar(ind, links){
       html+=`<div class="collapsible-wrap" style="margin-top:6px"><div class="ctext ${long?'collapsed':''}" id="def-mkt">${esc(defMkt)}</div>${long?'<span class="toggle-btn" onclick="toggleText(\'def-mkt\',this)">Show more ▼</span>':''}</div>`;
     }
   }
+
   const kwEN=val(ind.KeywordsIncludeEN); const kwIT=val(ind.KeywordsIncludeIT);
   if(kwEN||kwIT){
     html+='<div class="d-section">🏷️ Keywords</div>';
-    if(kwEN){ const tags=kwEN.split(/[,;|]+/).filter(Boolean).map(k=>`<span class="kw-tag">${esc(k.trim())}</span>`).join(''); html+=`<div class="d-row"><span class="d-label">EN</span><span class="d-val">${tags}</span></div>`; }
-    if(kwIT){ const tags=kwIT.split(/[,;|]+/).filter(Boolean).map(k=>`<span class="kw-tag" style="background:#fff8f0;border-color:#f5c89a;color:#7d4000">${esc(k.trim())}</span>`).join(''); html+=`<div class="d-row"><span class="d-label">IT</span><span class="d-val">${tags}</span></div>`; }
+    if(kwEN){
+      const tags=kwEN.split(/[,;|]+/).filter(Boolean)
+        .map(k=>`<span class="kw-tag">${esc(k.trim())}</span>`).join('');
+      html+=`<div class="d-row"><span class="d-label">EN</span><span class="d-val">${tags}</span></div>`;
+    }
+    if(kwIT){
+      const tags=kwIT.split(/[,;|]+/).filter(Boolean)
+        .map(k=>`<span class="kw-tag" style="background:#fff8f0;border-color:#f5c89a;color:#7d4000">${esc(k.trim())}</span>`).join('');
+      html+=`<div class="d-row"><span class="d-label">IT</span><span class="d-val">${tags}</span></div>`;
+    }
   }
+
   const orb=val(ind.OrbisBoolean);
   if(orb) html+=`<div class="d-section">🔍 Orbis Boolean</div><div class="orbis-box">${esc(orb)}</div>`;
   const tra=val(ind.TradeAssociations);
   if(tra) html+=`<div class="d-section">🏛️ Trade Associations</div><div style="font-size:12px;line-height:1.7">${esc(tra).replace(/;/g,'<br/>')}</div>`;
+
+  // Improved connections block
   html+=`<div class="d-section">🔗 Connections (${links.length})</div>`;
   if(!links.length){
     html+='<div class="no-links">No connections found.</div>';
   } else {
+    const isStrong = l => (l.StrengthScore || l._str || 1) >= 3;
     const renderGroup=(arr,label,cls,icon)=>{
       if(!arr.length) return '';
-      let g=`<div class="conn-group"><div class="conn-group-label ${cls}">${icon} ${label} <span class="conn-count">(${arr.length})</span></div>`;
-      arr.forEach(l=>{
-        const o=industriesData.find(i=>i.RepCode===l._other);
+      const strongCount = arr.filter(isStrong).length;
+      let g=`<div class="conn-group"><div class="conn-group-label ${cls}">${icon} ${label} <span class="conn-count">(${arr.length} total, ${strongCount} strong)</span></div>`;
+      const sorted = [...arr].sort((a,b)=>(b.StrengthScore||b._str||1)-(a.StrengthScore||a._str||1));
+      const top = sorted.slice(0,5);
+      top.forEach(l=>{
+        const o=indByCode.get(l._other);
         const n=o?o.NameEnglish:l._other;
         g+=`<div class="neighbor-item ${cls.replace('conn-','')}" onclick="navigateTo('${esc(l._other)}')"><span>${esc(n)}</span><span class="neighbor-code">#${esc(l._other)}</span></div>`;
       });
+      if(sorted.length>5){
+        g+=`<div class="neighbor-item" style="opacity:0.6;cursor:default;">+${sorted.length-5} more (refine with filters)</div>`;
+      }
       return g+'</div>';
     };
     html+=renderGroup(upstream,'Upstream','conn-upstream','▲');
     html+=renderGroup(peers,'Peers','conn-peer','↔');
     html+=renderGroup(downstream,'Downstream','conn-downstream','▼');
   }
+
   html+=`<div style="margin-top:16px"><button class="ctx-btn ctx-danger" onclick="severAllEdges('${esc(ind.RepCode)}')">✂ Sever all connections</button></div>`;
   document.getElementById('infoBox').innerHTML=html;
 }
@@ -874,7 +951,11 @@ function toggleText(id,btn){
 function wrapLabel(name,max=18){
   const words=String(name).split(' ');
   const lines=[]; let line='';
-  words.forEach(w=>{ if((line+' '+w).trim().length>max&&line){ lines.push(line); line=w; } else line=(line+' '+w).trim(); });
+  words.forEach(w=>{
+    if((line+' '+w).trim().length>max&&line){
+      lines.push(line); line=w;
+    } else line=(line+' '+w).trim();
+  });
   if(line) lines.push(line);
   return lines.slice(0,3).join('\n');
 }
