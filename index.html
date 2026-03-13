@@ -52,6 +52,8 @@
     #physicsBtn:hover { background:#bc8cff22; }
     #iotBtn { border-color:#f0883e; color:#f0883e; }
     #iotBtn:hover { background:#f0883e22; }
+    #themeBtn { border-color:#e5c07b; color:#e5c07b; }
+    #themeBtn:hover { background:#e5c07b22; }
     #statsLabel { font-size:11px; color:#8b949e; white-space:nowrap; }
 
     /* ── FILTER BAR ── */
@@ -146,11 +148,6 @@
     .neighbor-item.downstream { border-left-color:#3fb950; }
     .neighbor-code { font-size:10px; color:#484f58; margin-left:6px; white-space:nowrap; }
     .no-links { color:#484f58; font-size:12px; font-style:italic; padding:4px 0; }
-    .ctx-btn { padding:6px 12px; border-radius:4px; border:1px solid #30363d;
-      background:#21262d; color:#e6edf3; font-size:12px; cursor:pointer; margin-top:4px; }
-    .ctx-btn:hover { background:#30363d; }
-    .ctx-danger { border-color:#f85149; color:#f85149; }
-    .ctx-danger:hover { background:#f8514922; }
 
     /* ── GRAPH CANVAS ── */
     #network { flex:1; background:#0d1117; position:relative; min-width:0; }
@@ -180,6 +177,7 @@
       background:#21262d; border:1px solid #30363d; border-radius:6px;
       padding:9px 13px; font-size:12px; pointer-events:none;
       box-shadow:0 4px 16px rgba(0,0,0,.5); max-width:260px; z-index:100;
+      white-space:pre-line;
     }
     #iotTooltip strong { color:#f0883e; }
 
@@ -257,6 +255,7 @@
   <button class="tb-btn" id="physicsBtn" onclick="togglePhysics()">▶ Physics OFF</button>
   <button class="tb-btn" id="resetBtn">↺ Reset</button>
   <button class="tb-btn" id="iotBtn" onclick="toggleIotView()">🌐 IOT Spiderweb</button>
+  <button class="tb-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
   <span id="statsLabel"></span>
 </div>
 
@@ -298,7 +297,6 @@
       <h2>🕸</h2>
       <p>Loading industry web…</p>
     </div>
-    <!-- Graph legend -->
     <div id="legend">
       <h3>Connection type</h3>
       <div class="leg-row"><div class="leg-line" style="background:#d29922"></div> Upstream</div>
@@ -319,9 +317,7 @@
     </div>
     <canvas id="iotCanvas"></canvas>
     <div id="iotTooltip"></div>
-    <div id="iotLegend">
-      <h3>Macro Sector</h3>
-    </div>
+    <div id="iotLegend"><h3>Macro Sector</h3></div>
   </div>
 
   <!-- IOT GVA SIDEBAR -->
