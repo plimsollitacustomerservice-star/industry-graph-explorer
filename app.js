@@ -9,6 +9,7 @@
 //   • IOT Spiderweb view – EA20 2023 Eurostat sector flows radial canvas
 //   • GVA sidebar panel with ranked bar list
 //   • Dark / Light theme toggle
+//   • Master file fallback – loads industries_master.json if chunked files fail
 // ══════════════════════════════════════════════════════════════════════════════
 
 'use strict';
@@ -119,51 +120,93 @@ function applyTheme(dark){
   }
   const btn = document.getElementById('themeBtn');
   if(btn) btn.textContent = dark ? '☀ Light' : '🌙 Dark';
-  // redraw IOT canvas if active
   if(iotMode && iotLoaded) drawIotSpiderweb();
 }
 
 function toggleTheme(){ applyTheme(!_darkMode); }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DATA LOADING
+// DATA LOADING  (with master-file fallback)
 // ══════════════════════════════════════════════════════════════════════════════
+function processIndustries(data){
+  indByCode   = new Map();
+  linksByCode = new Map();
+  industriesData = data;
+  industriesData.forEach(ind => {
+    registerIndustry(ind);
+    ind._searchBlob = [
+      ind.RepCode||'', ind.NameEnglish||'', ind.NameNative||'',
+      ind.ATECOPrimary||'', ind.ATECOAll||'',
+      ind.KeywordsIncludeEN||'', ind.KeywordsIncludeIT||''
+    ].join(' ').toLowerCase();
+  });
+}
+
+function processLinks(data){
+  linksData = data;
+  linksData.forEach((l, idx) => {
+    l._id = l._id || `l_${idx}`;
+    registerLink(l);
+  });
+}
+
 async function loadData(){
   const statsEl = document.getElementById('statsLabel');
+  statsEl.textContent = 'Loading data…';
+
+  let manifest;
   try {
-    statsEl.textContent = 'Loading data…';
-    const manifest    = await axios.get('data/manifest.json').then(r=>r.data);
-    const iFiles      = manifest.industryFiles.map(f=>'data/'+f);
-    const lFiles      = manifest.linkFiles.map(f=>'data/'+f);
-    const [iRes,lRes] = await Promise.all([
-      Promise.all(iFiles.map(f=>axios.get(f).then(r=>r.data))),
-      Promise.all(lFiles.map(f=>axios.get(f).then(r=>r.data)))
-    ]);
-    industriesData = iRes.flat();
-    linksData      = lRes.flat();
-
-    indByCode   = new Map();
-    linksByCode = new Map();
-    industriesData.forEach(ind => {
-      registerIndustry(ind);
-      const parts = [
-        ind.RepCode||'', ind.NameEnglish||'', ind.NameNative||'',
-        ind.ATECOPrimary||'', ind.ATECOAll||'',
-        ind.KeywordsIncludeEN||'', ind.KeywordsIncludeIT||''
-      ];
-      ind._searchBlob = parts.join(' ').toLowerCase();
-    });
-    linksData.forEach((l, idx) => {
-      l._id = l._id || `l_${idx}`;
-      registerLink(l);
-    });
-
-    statsEl.textContent = `${industriesData.length.toLocaleString()} industries · ${linksData.length.toLocaleString()} links`;
-    buildSpiderweb();
-  } catch(e){
-    console.error(e);
-    statsEl.textContent = 'Error loading data';
+    manifest = await axios.get('data/manifest.json').then(r => r.data);
+  } catch(e) {
+    statsEl.textContent = '❌ Could not load manifest.json';
+    console.error('Manifest load failed:', e);
+    return;
   }
+
+  // ── Step 1: try loading chunked industry + link files in parallel ────────
+  let industriesLoaded = false;
+  try {
+    const iFiles = manifest.industryFiles.map(f => 'data/' + f);
+    const lFiles = manifest.linkFiles.map(f => 'data/' + f);
+    const [iRes, lRes] = await Promise.all([
+      Promise.all(iFiles.map(f => axios.get(f).then(r => r.data))),
+      Promise.all(lFiles.map(f => axios.get(f).then(r => r.data)))
+    ]);
+    processIndustries(iRes.flat());
+    processLinks(lRes.flat());
+    industriesLoaded = true;
+    console.log(`✅ Loaded ${industriesData.length} industries from chunked files.`);
+  } catch(e) {
+    console.warn('⚠️ Chunked industry files failed, trying master file fallback…', e);
+  }
+
+  // ── Step 2: fallback to industries_master.json if chunked load failed ─────
+  if(!industriesLoaded && manifest.masterFile){
+    try {
+      statsEl.textContent = 'Chunked load failed – trying master file…';
+      const masterData = await axios.get('data/' + manifest.masterFile).then(r => r.data);
+      processIndustries(masterData);
+      console.log(`✅ Loaded ${industriesData.length} industries from master file fallback.`);
+
+      // Still try to load links even if industries came from master
+      try {
+        const lFiles = manifest.linkFiles.map(f => 'data/' + f);
+        const lRes   = await Promise.all(lFiles.map(f => axios.get(f).then(r => r.data)));
+        processLinks(lRes.flat());
+      } catch(le){
+        console.warn('⚠️ Link files also failed – graph will have no edges.', le);
+        linksData = [];
+      }
+      industriesLoaded = true;
+    } catch(fe){
+      statsEl.textContent = '❌ Both chunked files and master fallback failed.';
+      console.error('Master file fallback failed:', fe);
+      return;
+    }
+  }
+
+  statsEl.textContent = `${industriesData.length.toLocaleString()} industries · ${linksData.length.toLocaleString()} links`;
+  buildSpiderweb();
 }
 
 async function loadIotData(){
@@ -193,9 +236,6 @@ async function loadIotData(){
 // SPIDERWEB GRAPH
 // ══════════════════════════════════════════════════════════════════════════════
 function buildSpiderweb(){
-  const dirFilter = () => document.getElementById('filterDir').value;
-  const strFilter = () => parseInt(document.getElementById('filterStr').value)||1;
-
   const nodes = industriesData.map(ind => ({
     id:    ind.RepCode,
     label: wrapLabel(ind.NameEnglish||ind.RepCode),
@@ -237,7 +277,7 @@ function buildSpiderweb(){
 
   document.getElementById('emptyState').style.display = 'none';
 
-  // Search setup
+  // ── Search ────────────────────────────────────────────────────────────────
   const searchBox  = document.getElementById('searchBox');
   const resultsDiv = document.getElementById('results');
   searchBox.addEventListener('input',()=>{
@@ -270,7 +310,7 @@ function buildSpiderweb(){
       resultsDiv.style.display='none';
   });
 
-  // Reset button
+  // ── Reset ─────────────────────────────────────────────────────────────────
   document.getElementById('resetBtn').onclick = () => {
     searchBox.value = '';
     resultsDiv.style.display = 'none';
@@ -278,11 +318,11 @@ function buildSpiderweb(){
     networkInstance.fit({ animation:{ duration:600, easingFunction:'easeInOutQuad' } });
   };
 
-  // Filter bar
+  // ── Filter bar ────────────────────────────────────────────────────────────
   document.getElementById('filterDir').onchange = () => renderSidebar(currentCode);
   document.getElementById('filterStr').onchange = () => renderSidebar(currentCode);
 
-  // Node click
+  // ── Node / edge click ─────────────────────────────────────────────────────
   networkInstance.on('click', params => {
     if(drawMode && drawFrom && params.nodes.length > 0){
       const toCode = params.nodes[0];
@@ -339,7 +379,6 @@ function navigateTo(code){
 function pulseNode(code){
   const orig = nodesDS.get(code);
   if(!orig) return;
-  const c = sc(orig.color?.border || '#58a6ff');
   let t = 0;
   const iv = setInterval(()=>{
     t++;
@@ -351,7 +390,6 @@ function pulseNode(code){
 function highlightEdge(edgeId){
   const e = edgesDS.get(edgeId);
   if(!e) return;
-  clearHighlight();
   const fromInd = indByCode.get(e.from);
   const toInd   = indByCode.get(e.to);
   document.getElementById('infoBox').innerHTML =
@@ -401,70 +439,60 @@ function renderSidebar(code){
   const vcs = val(ind.ValueChainStage);
   const vcsBadge = vcs ? `<span class="status-badge">${esc(vcs)}</span>` : '';
 
-  // ATECO chips
-  const allAteco = [val(ind.ATECOPrimary), ...val(ind.ATECOAll).split(/[,;]/).map(s=>s.trim())].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
-  const atecoHtml = allAteco.map(a=>`<span class="ateco-chip">${esc(a)}</span>`).join('') || '<span class="empty-val">—</span>';
+  const allAteco = [val(ind.ATECOPrimary), ...val(ind.ATECOAll).split(/[,;]/).map(s=>s.trim())]
+    .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  const atecoHtml = allAteco.map(a=>`<span class="ateco-chip">${esc(a)}</span>`).join('')
+    || '<span class="empty-val">—</span>';
 
-  // Keywords
   const kwEN = val(ind.KeywordsIncludeEN).split(/[,;]/).map(s=>s.trim()).filter(Boolean);
   const kwIT = val(ind.KeywordsIncludeIT).split(/[,;]/).map(s=>s.trim()).filter(Boolean);
-  const kwHtml = [...kwEN,...kwIT].map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('') || '<span class="empty-val">—</span>';
+  const kwHtml = [...kwEN,...kwIT].map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('')
+    || '<span class="empty-val">—</span>';
 
-  // Definitions (collapsible)
   const defEN = val(ind.ReportDefinitionEN) || val(ind.MarketingDefinitionEN);
   const defHtml = defEN
     ? `<div class="collapsible-wrap"><div class="ctext collapsed" id="ctext_${code}">${esc(defEN)}</div>`+
       `<span class="toggle-btn" onclick="toggleCollapse('ctext_${code}',this)">▼ Show more</span></div>`
     : '<span class="empty-val">—</span>';
 
-  // Orbis boolean
   const orbis = val(ind.OrbisBoolean);
   const orbisHtml = orbis ? `<div class="orbis-box">${esc(orbis)}</div>` : '<span class="empty-val">—</span>';
 
-  // Trade associations
   const ta = val(ind.TradeAssociations);
   const taHtml = ta ? esc(ta) : '<span class="empty-val">—</span>';
 
-  // Connection lists
-  function connItem(l, side){
-    const otherCode = side==='from' ? l.ToIndustryCode : l.FromIndustryCode;
+  function connItem(l){
+    const otherCode = l.ToIndustryCode === code ? l.FromIndustryCode : l.ToIndustryCode;
     const otherInd  = indByCode.get(otherCode);
     const name      = otherInd?.NameEnglish || otherCode;
     const dir       = (l.Direction||'Peer').toLowerCase();
     return `<div class="neighbor-item ${dir}" onclick="navigateTo('${otherCode}')">
-      <span>${esc(name)}</span>
-      <span class="neighbor-code">${esc(otherCode)}</span>
+      <span>${esc(name)}</span><span class="neighbor-code">${esc(otherCode)}</span>
     </div>`;
   }
 
-  const upHtml   = upstream.length   ? upstream.map(l=>connItem(l,l.ToIndustryCode===code?'to':'from')).join('') : '<div class="no-links">None</div>';
-  const peerHtml = peer.length       ? peer.map(l=>connItem(l,l.ToIndustryCode===code?'to':'from')).join('') : '<div class="no-links">None</div>';
-  const downHtml = downstream.length ? downstream.map(l=>connItem(l,l.ToIndustryCode===code?'to':'from')).join('') : '<div class="no-links">None</div>';
+  const upHtml   = upstream.length   ? upstream.map(connItem).join('')   : '<div class="no-links">None</div>';
+  const peerHtml = peer.length       ? peer.map(connItem).join('')       : '<div class="no-links">None</div>';
+  const downHtml = downstream.length ? downstream.map(connItem).join('') : '<div class="no-links">None</div>';
 
   document.getElementById('infoBox').innerHTML = `
     <span class="d-repcode">${esc(ind.RepCode)}</span>
-    <div class="d-title">${esc(val(ind.NameEnglish,ind.RepCode))}</div>
+    <div class="d-title">${esc(val(ind.NameEnglish, ind.RepCode))}</div>
     <div class="d-native">${esc(val(ind.NameNative,''))}</div>
     <div class="d-badges">
       <span class="sector-pill" style="background:${c}22;color:${c};border:1px solid ${c}55">${sl(ind.Sector)}</span>
       ${priBadge}${vcsBadge}
     </div>
-
     <div class="d-section">Classification</div>
     <div class="d-row"><span class="d-label">ATECO codes</span><span class="d-val">${atecoHtml}</span></div>
-
     <div class="d-section">Definition</div>
     <div class="d-row"><span class="d-val" style="flex:1">${defHtml}</span></div>
-
     <div class="d-section">Keywords</div>
     <div class="d-row"><span class="d-val" style="flex:1">${kwHtml}</span></div>
-
     <div class="d-section">Orbis Boolean</div>
     <div class="d-row"><span class="d-val" style="flex:1">${orbisHtml}</span></div>
-
     <div class="d-section">Trade Associations</div>
     <div class="d-row"><span class="d-val" style="flex:1">${taHtml}</span></div>
-
     <div class="d-section">Connections (${links.length})</div>
     <div class="conn-group">
       <div class="conn-group-label conn-upstream">▲ Upstream <span class="conn-count">(${upstream.length})</span></div>
@@ -504,13 +532,13 @@ function toggleDrawMode(forceOff){
   drawMode = forceOff === false ? false : !drawMode;
   drawFrom = null;
   const btn = document.getElementById('drawBtn');
-  btn.textContent = drawMode ? '✔ Drawing…' : '✏ Add Connection';
+  btn.textContent      = drawMode ? '✔ Drawing…' : '✏ Add Connection';
   btn.style.borderColor = drawMode ? '#3fb950' : '';
   btn.style.color       = drawMode ? '#3fb950' : '';
   if(drawMode){
     networkInstance && networkInstance.on('selectNode', params => {
       if(!drawMode) return;
-      if(!drawFrom){ drawFrom = params.nodes[0]; } 
+      if(!drawFrom) drawFrom = params.nodes[0];
     });
   }
 }
@@ -523,7 +551,6 @@ function showContextMenu(params){
   const x = params.event.clientX;
   const y = params.event.clientY;
   let html = '';
-
   if(params.nodes.length > 0){
     const code = params.nodes[0];
     const ind  = indByCode.get(code);
@@ -535,7 +562,6 @@ function showContextMenu(params){
     html = `<div class="ctx-title">Edge</div>`+
            `<div class="ctx-item ctx-danger" onclick="removeEdge('${eid}');hideContextMenu()">✕ Remove connection</div>`;
   } else { return; }
-
   menu.innerHTML = html;
   menu.style.display = 'block';
   menu.style.left = x+'px';
@@ -587,7 +613,7 @@ function toggleIotView(){
 function resizeIotCanvas(){
   const canvas = document.getElementById('iotCanvas');
   const wrap   = document.getElementById('iotView');
-  canvas.width  = wrap.clientWidth  - (document.getElementById('iotSidebar').clientWidth || 280);
+  canvas.width  = wrap.clientWidth - (document.getElementById('iotSidebar').clientWidth || 280);
   canvas.height = wrap.clientHeight;
   if(iotLoaded) drawIotSpiderweb();
 }
@@ -599,29 +625,26 @@ function drawIotSpiderweb(){
   const canvas = document.getElementById('iotCanvas');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
-  const W   = canvas.width;
-  const H   = canvas.height;
+  const W = canvas.width, H = canvas.height;
   if(!W || !H) return;
   ctx.clearRect(0,0,W,H);
 
   const sectors = getSectors();
-  const n  = sectors.length;
-  const cx = W / 2;
-  const cy = H / 2;
+  const n = sectors.length;
+  const cx = W/2, cy = H/2;
   const R  = Math.min(W,H) * 0.36;
 
   const pos = {};
   sectors.forEach((s,i) => {
     const angle = (2*Math.PI*i/n) - Math.PI/2;
-    pos[s] = { x: cx+R*Math.cos(angle), y: cy+R*Math.sin(angle), angle, label:s };
+    pos[s] = { x: cx+R*Math.cos(angle), y: cy+R*Math.sin(angle), angle };
   });
 
   const maxFlow = Math.max(...iotSectorLinks.map(l=>l.value_bn||0)) || 1;
 
   iotSectorLinks.forEach(link => {
-    const from = pos[link.source];
-    const to   = pos[link.target];
-    if(!from || !to) return;
+    const from = pos[link.source], to = pos[link.target];
+    if(!from||!to) return;
     const isActive = (iotSelected===link.source||iotSelected===link.target||iotHovered===link.source||iotHovered===link.target);
     const t = (link.value_bn||0)/maxFlow;
     const alpha = isActive ? 0.8 : (iotSelected ? 0.06 : 0.18+t*0.45);
@@ -650,17 +673,14 @@ function drawIotSpiderweb(){
   });
 
   sectors.forEach(s => {
-    const p      = pos[s];
-    const isSel  = iotSelected===s;
-    const isHov  = iotHovered===s;
-    const isDim  = iotSelected && !isSel;
-    const color  = iotColor(s);
+    const p = pos[s];
+    const isSel = iotSelected===s, isHov = iotHovered===s, isDim = iotSelected&&!isSel;
+    const color = iotColor(s);
     const radius = isSel ? 28 : isHov ? 24 : 18;
     ctx.save();
     ctx.globalAlpha = isDim ? 0.3 : 1.0;
     if(isSel){ ctx.shadowColor=color; ctx.shadowBlur=22; }
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,radius,0,2*Math.PI);
+    ctx.beginPath(); ctx.arc(p.x,p.y,radius,0,2*Math.PI);
     const hex=color, r2=parseInt(hex.slice(1,3),16), g2=parseInt(hex.slice(3,5),16), b2=parseInt(hex.slice(5,7),16);
     ctx.fillStyle=`rgba(${r2},${g2},${b2},0.85)`; ctx.fill();
     ctx.strokeStyle='#ffffff'; ctx.lineWidth=isSel?3:1.5; ctx.stroke();
@@ -675,8 +695,7 @@ function drawIotSpiderweb(){
     ctx.restore();
   });
 
-  ctx.save();
-  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
   if(iotSelected){
     const outFlows=iotSectorLinks.filter(l=>l.source===iotSelected).reduce((s,l)=>s+(l.value_bn||0),0);
     const inFlows =iotSectorLinks.filter(l=>l.target===iotSelected).reduce((s,l)=>s+(l.value_bn||0),0);
@@ -704,8 +723,7 @@ function getIotSectorAtXY(mx,my){
   for(let i=0;i<n;i++){
     const angle=(2*Math.PI*i/n)-Math.PI/2;
     const sx=cx+R*Math.cos(angle), sy=cy+R*Math.sin(angle);
-    const dist=Math.sqrt((mx-sx)**2+(my-sy)**2);
-    if(dist<28) return sectors[i];
+    if(Math.sqrt((mx-sx)**2+(my-sy)**2)<28) return sectors[i];
   }
   return null;
 }
@@ -720,7 +738,6 @@ function setupIotCanvasEvents(){
   const canvas  = document.getElementById('iotCanvas');
   const tooltip = document.getElementById('iotTooltip');
   if(!canvas) return;
-
   canvas.addEventListener('mousemove', e => {
     if(!iotLoaded) return;
     const rect = canvas.getBoundingClientRect();
@@ -731,17 +748,15 @@ function setupIotCanvasEvents(){
       const topIn  = iotSectorLinks.filter(l=>l.target===hit).sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
       const totalOut = topOut.reduce((s,l)=>s+(l.value_bn||0),0);
       const totalIn  = topIn.reduce((s,l)=>s+(l.value_bn||0),0);
-      let html = `<strong>${hit}</strong>\n`;
-      html += `Total output: ${fmtBn(totalOut)}\n`;
-      html += `Total input: ${fmtBn(totalIn)}`;
-      if(topOut.length) html += `\n▶ Sells most to: `+topOut.map(l=>`${l.target} (${fmtBn(l.value_bn)})`).join(', ');
-      if(topIn.length)  html += `\n◀ Buys most from: `+topIn.map(l=>`${l.source} (${fmtBn(l.value_bn)})`).join(', ');
-      tooltip.innerText  = html;
+      let txt = `${hit}\nTotal output: ${fmtBn(totalOut)}\nTotal input: ${fmtBn(totalIn)}`;
+      if(topOut.length) txt += `\n▶ Sells to: `+topOut.map(l=>`${l.target} (${fmtBn(l.value_bn)})`).join(', ');
+      if(topIn.length)  txt += `\n◀ Buys from: `+topIn.map(l=>`${l.source} (${fmtBn(l.value_bn)})`).join(', ');
+      tooltip.innerText = txt;
       tooltip.style.display = 'block';
       tooltip.style.left = Math.min(e.clientX-rect.left+16, canvas.width-280)+'px';
       tooltip.style.top  = Math.max(e.clientY-rect.top-10, 8)+'px';
     } else {
-      tooltip.style.display = 'none';
+      tooltip.style.display='none';
     }
     drawIotSpiderweb();
   });
@@ -749,8 +764,7 @@ function setupIotCanvasEvents(){
   canvas.addEventListener('click', e=>{
     if(!iotLoaded) return;
     const rect=canvas.getBoundingClientRect();
-    const hit=getIotSectorAtXY(e.clientX-rect.left, e.clientY-rect.top);
-    selectIotSector(hit);
+    selectIotSector(getIotSectorAtXY(e.clientX-rect.left, e.clientY-rect.top));
   });
 }
 
