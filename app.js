@@ -14,6 +14,7 @@
 //  11.  Sidebar resize handle (drag)
 //  12.  Inline annotation notes (localStorage)
 //  13.  "Focus" button in sidebar re-centres graph on current node
+//  14.  Search dropdown initialised at DOM-ready (not inside buildSpiderweb)
 // ══════════════════════════════════════════════════════════════════════════════
 
 'use strict';
@@ -30,13 +31,13 @@ let drawFrom        = null;
 let deletedEdges    = new Set();
 let addedEdges      = [];
 let activeSector    = 'all';
-let activeAteco     = null;          // #9 ATECO filter
-let _navHistory     = [];            // #5 back/forward
+let activeAteco     = null;
+let _navHistory     = [];
 let _navIdx         = -1;
 let _skipHashUpdate = false;
-let _searchResultIdx = -1;           // #4 keyboard nav in dropdown
-let _starred        = new Set(JSON.parse(localStorage.getItem('ige_starred')||'[]')); // #7
-let _notes          = JSON.parse(localStorage.getItem('ige_notes')||'{}'); // #12
+let _searchResultIdx = -1;
+let _starred        = new Set(JSON.parse(localStorage.getItem('ige_starred')||'[]'));
+let _notes          = JSON.parse(localStorage.getItem('ige_notes')||'{}');
 
 // ── fast lookup maps ──────────────────────────────────────────────────────────
 let indByCode   = new Map();
@@ -325,7 +326,6 @@ async function loadData(){
   showProgress(100);
   statsEl.textContent = `${industriesData.length.toLocaleString()} industries · ${linksData.length.toLocaleString()} links`;
   buildSpiderweb();
-  // restore URL hash on load
   const hashCode = readHash();
   if(hashCode && indByCode.has(hashCode)) setTimeout(()=>navigateTo(hashCode,true),300);
 }
@@ -342,6 +342,104 @@ async function loadIotData(){
     document.getElementById('iotStatLine').textContent=`${nodes.length} NACE nodes · ${slinks.length} sector flows`;
     buildGvaList(); buildIotLegend(); drawIotSpiderweb();
   } catch(e){ document.getElementById('iotStatLine').textContent='Error loading IOT data'; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// #14  SEARCH – initialised at DOM-ready, works before graph loads
+// ══════════════════════════════════════════════════════════════════════════════
+function initSearch(){
+  const searchBox  = document.getElementById('searchBox');
+  const resultsDiv = document.getElementById('results');
+  if(!searchBox || !resultsDiv) return;
+
+  function renderDropdown(q){
+    _searchResultIdx = -1;
+    resultsDiv.innerHTML = '';
+    if(!q){ resultsDiv.style.display='none'; return; }
+    const matches = industriesData
+      .filter(i => i._searchBlob && i._searchBlob.includes(q)
+        && (activeSector==='all' || i.Sector===activeSector))
+      .slice(0,25);
+    if(!matches.length){ resultsDiv.style.display='none'; return; }
+    matches.forEach((item,idx) => {
+      const div = document.createElement('div');
+      div.dataset.idx = idx;
+      const c = sc(item.Sector);
+      div.innerHTML =
+        `<span class="res-code">${esc(item.RepCode)}</span> `+
+        `<span class="res-name">– ${esc(item.NameEnglish)}</span>`+
+        `<span class="res-sector" style="background:${c}22;color:${c};border:1px solid ${c}55">${esc(item.Sector)}</span>`;
+      div.addEventListener('mousedown', e => {
+        e.preventDefault();
+        resultsDiv.style.display='none';
+        searchBox.value = item.NameEnglish;
+        navigateTo(item.RepCode);
+      });
+      resultsDiv.appendChild(div);
+    });
+    resultsDiv._matches = matches;
+    resultsDiv.style.display='block';
+  }
+
+  searchBox.addEventListener('input', () => renderDropdown(searchBox.value.trim().toLowerCase()));
+
+  // #4 arrow-key navigation
+  searchBox.addEventListener('keydown', e => {
+    const items = resultsDiv.querySelectorAll('div');
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      _searchResultIdx = Math.min(_searchResultIdx+1, items.length-1);
+      _highlightItem(items);
+    } else if(e.key==='ArrowUp'){
+      e.preventDefault();
+      _searchResultIdx = Math.max(_searchResultIdx-1, -1);
+      _highlightItem(items);
+    } else if(e.key==='Enter'){
+      if(_searchResultIdx >= 0){
+        e.preventDefault();
+        const m = resultsDiv._matches || [];
+        if(m[_searchResultIdx]){
+          resultsDiv.style.display='none';
+          searchBox.value = m[_searchResultIdx].NameEnglish;
+          navigateTo(m[_searchResultIdx].RepCode);
+        }
+      } else {
+        // Enter with no arrow selection — pick first match
+        const m = resultsDiv._matches || [];
+        if(m[0]){
+          e.preventDefault();
+          resultsDiv.style.display='none';
+          searchBox.value = m[0].NameEnglish;
+          navigateTo(m[0].RepCode);
+        }
+      }
+    } else if(e.key==='Escape'){
+      resultsDiv.style.display='none';
+      searchBox.blur();
+    }
+  });
+
+  function _highlightItem(items){
+    items.forEach((el,i) => { el.style.background = i===_searchResultIdx ? '#30363d' : ''; });
+    if(items[_searchResultIdx]) items[_searchResultIdx].scrollIntoView({block:'nearest'});
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    if(!document.getElementById('searchWrap').contains(e.target))
+      resultsDiv.style.display='none';
+  });
+
+  // '/' shortcut to focus search
+  document.addEventListener('keydown', e => {
+    if(e.key==='/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'){
+      e.preventDefault();
+      searchBox.focus();
+      searchBox.select();
+    }
+    if(e.key==='ArrowLeft'  && (e.altKey||e.metaKey)) historyBack();
+    if(e.key==='ArrowRight' && (e.altKey||e.metaKey)) historyForward();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -382,78 +480,9 @@ function buildSpiderweb(){
   // ── #11 Sidebar resize handle ─────────────────────────────────────────────
   _initSidebarResize();
 
-  // ── Search setup ──────────────────────────────────────────────────────────
+  // Reset button
   const searchBox  = document.getElementById('searchBox');
   const resultsDiv = document.getElementById('results');
-
-  searchBox.addEventListener('input', () => {
-    _searchResultIdx = -1;
-    const q = searchBox.value.trim().toLowerCase();
-    resultsDiv.innerHTML='';
-    if(!q){ resultsDiv.style.display='none'; return; }
-    const matches = industriesData
-      .filter(i => i._searchBlob && i._searchBlob.includes(q)
-        && (activeSector==='all' || i.Sector===activeSector))
-      .slice(0,25);
-    if(!matches.length){ resultsDiv.style.display='none'; return; }
-    matches.forEach((item,idx) => {
-      const div = document.createElement('div');
-      div.dataset.idx = idx;
-      const c = sc(item.Sector);
-      div.innerHTML =
-        `<span class="res-code">${esc(item.RepCode)}</span> `+
-        `<span class="res-name">– ${esc(item.NameEnglish)}</span>`+
-        `<span class="res-sector" style="background:${c}22;color:${c};border:1px solid ${c}55">${esc(item.Sector)}</span>`;
-      div.addEventListener('mousedown', e => {
-        e.preventDefault();
-        resultsDiv.style.display='none';
-        searchBox.value = item.NameEnglish;
-        navigateTo(item.RepCode);
-      });
-      resultsDiv.appendChild(div);
-    });
-    resultsDiv._matches = matches;
-    resultsDiv.style.display='block';
-  });
-
-  // #4 arrow-key navigation in dropdown
-  searchBox.addEventListener('keydown', e => {
-    const items = resultsDiv.querySelectorAll('div');
-    if(e.key==='ArrowDown'){ e.preventDefault(); _searchResultIdx=Math.min(_searchResultIdx+1,items.length-1); _highlightSearchItem(items); }
-    else if(e.key==='ArrowUp'){ e.preventDefault(); _searchResultIdx=Math.max(_searchResultIdx-1,-1); _highlightSearchItem(items); }
-    else if(e.key==='Enter' && _searchResultIdx >= 0){
-      e.preventDefault();
-      const matches = resultsDiv._matches || [];
-      if(matches[_searchResultIdx]){
-        const item = matches[_searchResultIdx];
-        resultsDiv.style.display='none';
-        searchBox.value = item.NameEnglish;
-        navigateTo(item.RepCode);
-      }
-    } else if(e.key==='Escape'){ resultsDiv.style.display='none'; searchBox.blur(); }
-  });
-
-  function _highlightSearchItem(items){
-    items.forEach((el,i)=>{ el.style.background = i===_searchResultIdx ? '#30363d' : ''; });
-    if(items[_searchResultIdx]) items[_searchResultIdx].scrollIntoView({block:'nearest'});
-  }
-
-  document.addEventListener('click', e => {
-    if(!document.getElementById('searchWrap').contains(e.target)) resultsDiv.style.display='none';
-  });
-
-  // #1 '/' shortcut to focus search
-  document.addEventListener('keydown', e => {
-    if(e.key==='/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'){
-      e.preventDefault();
-      searchBox.focus();
-      searchBox.select();
-    }
-    if(e.key==='ArrowLeft'  && (e.altKey||e.metaKey)) historyBack();
-    if(e.key==='ArrowRight' && (e.altKey||e.metaKey)) historyForward();
-  });
-
-  // Reset
   document.getElementById('resetBtn').onclick = () => {
     searchBox.value='';
     resultsDiv.style.display='none';
@@ -474,7 +503,7 @@ function buildSpiderweb(){
   document.getElementById('filterDir').onchange = () => renderSidebar(currentCode);
   document.getElementById('filterStr').onchange = () => renderSidebar(currentCode);
 
-  // Node click → #1 ego highlight + navigate
+  // Node click → ego highlight + navigate
   networkInstance.on('click', params => {
     if(drawMode && drawFrom && params.nodes.length > 0){
       const toCode = params.nodes[0];
@@ -493,7 +522,7 @@ function buildSpiderweb(){
     }
     if(params.nodes.length > 0){
       const code = params.nodes[0];
-      searchBox.value = indByCode.get(code)?.NameEnglish || code;
+      document.getElementById('searchBox').value = indByCode.get(code)?.NameEnglish || code;
       navigateTo(code);
     } else if(params.edges.length > 0 && !drawMode){
       highlightEdge(params.edges[0]);
@@ -519,13 +548,10 @@ function _applyEgoHighlight(code){
       neighbours.add(l.ToIndustryCode);
     }
   });
-  const nodeUpdates = industriesData.map(ind => {
-    const isNeighbour = neighbours.has(ind.RepCode);
-    return {
-      id: ind.RepCode,
-      opacity: isNeighbour ? 1 : 0.12
-    };
-  });
+  const nodeUpdates = industriesData.map(ind => ({
+    id: ind.RepCode,
+    opacity: neighbours.has(ind.RepCode) ? 1 : 0.12
+  }));
   nodesDS.update(nodeUpdates);
   const edgeUpdates = (edgesDS.get() || []).map(e => ({
     id: e.id,
@@ -623,7 +649,6 @@ function renderSidebar(code){
 
   const allAteco = [val(ind.ATECOPrimary), ...val(ind.ATECOAll).split(/[,;]/).map(s=>s.trim())]
     .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
-  // #9 ATECO chips are clickable
   const atecoHtml = allAteco.map(a=>
     `<span class="ateco-chip" style="cursor:pointer" onclick="applyAtecoFilter('${esc(a)}')" title="Filter to ATECO ${esc(a)}">${esc(a)}</span>`
   ).join('') || '<span class="empty-val">—</span>';
@@ -639,7 +664,6 @@ function renderSidebar(code){
     : '<span class="empty-val">—</span>';
 
   const orbis = val(ind.OrbisBoolean);
-  // #3 Copy Orbis Boolean button
   const orbisHtml = orbis
     ? `<div style="position:relative">`+
       `<div class="orbis-box" id="orbis_${code}">${esc(orbis)}</div>`+
@@ -650,17 +674,11 @@ function renderSidebar(code){
   const ta = val(ind.TradeAssociations);
   const taHtml = ta ? esc(ta) : '<span class="empty-val">—</span>';
 
-  // #7 Star button
   const isStarred = _starred.has(code);
   const starBtn = `<button onclick="toggleStar('${code}')" title="${isStarred?'Unstar':'Star'} this industry" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;">${isStarred?'⭐':'☆'}</button>`;
-
-  // #13 Focus button
   const focusBtn = `<button onclick="_focusCurrent()" title="Re-centre graph on this node" style="background:#21262d;border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:11px;color:#58a6ff;cursor:pointer">🎯 Focus</button>`;
-
-  // #8 Export connections CSV button
   const exportBtn = `<button onclick="_exportConnections('${code}')" title="Export connections to CSV" style="background:#21262d;border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:11px;color:#3fb950;cursor:pointer">⬇ Export CSV</button>`;
 
-  // #12 Inline notes
   const existingNote = _notes[code] || '';
   const noteHtml =
     `<div class="d-section">My Notes</div>`+
@@ -1031,5 +1049,6 @@ function wrapLabel(name,max=18){
 
 // ── BOOTSTRAP ─────────────────────────────────────────────────────────────────
 applyTheme(true);
+initSearch();   // #14 – wire up search immediately, before data loads
 loadData();
 renderStarredFilter();
