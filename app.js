@@ -10,6 +10,7 @@
 //   • GVA sidebar panel with ranked bar list
 //   • Dark / Light theme toggle
 //   • Master file fallback – loads industries_master.json if chunked files fail
+//   • Sector filter dropdown – show/hide nodes by sector code
 // ══════════════════════════════════════════════════════════════════════════════
 
 'use strict';
@@ -25,6 +26,7 @@ let drawMode        = false;
 let drawFrom        = null;
 let deletedEdges    = new Set();
 let addedEdges      = [];
+let activeSector    = 'all';   // tracks current sector filter
 
 // ── fast lookup maps ──────────────────────────────────────────────────────────
 let indByCode   = new Map();
@@ -126,11 +128,65 @@ function applyTheme(dark){
 function toggleTheme(){ applyTheme(!_darkMode); }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SECTOR FILTER
+// ══════════════════════════════════════════════════════════════════════════════
+function applySectorFilter(){
+  activeSector = document.getElementById('filterSector').value;
+  if(!nodesDS) return;
+
+  const updates = industriesData.map(ind => {
+    const visible = (activeSector === 'all' || ind.Sector === activeSector);
+    return {
+      id:     ind.RepCode,
+      hidden: !visible,
+      // dim colour when hidden so edges become invisible too
+      color: visible
+        ? { background: sc(ind.Sector)+'33', border: sc(ind.Sector),
+            highlight:{ background:sc(ind.Sector)+'66', border:sc(ind.Sector) } }
+        : { background:'transparent', border:'transparent',
+            highlight:{ background:'transparent', border:'transparent' } }
+    };
+  });
+  nodesDS.update(updates);
+
+  // Also hide/show edges whose both endpoints are hidden
+  if(edgesDS){
+    const edgeUpdates = linksData
+      .filter(l => !deletedEdges.has(l._id))
+      .map(l => {
+        const fromVis = activeSector === 'all' || (indByCode.get(l.FromIndustryCode)?.Sector === activeSector);
+        const toVis   = activeSector === 'all' || (indByCode.get(l.ToIndustryCode)?.Sector   === activeSector);
+        return { id: l._id, hidden: !(fromVis && toVis) };
+      });
+    edgesDS.update(edgeUpdates);
+  }
+
+  // Update stats label to show filtered count
+  const visibleCount = activeSector === 'all'
+    ? industriesData.length
+    : industriesData.filter(i => i.Sector === activeSector).length;
+  const statsEl = document.getElementById('statsLabel');
+  if(activeSector === 'all'){
+    statsEl.textContent = `${industriesData.length.toLocaleString()} industries · ${linksData.length.toLocaleString()} links`;
+  } else {
+    statsEl.textContent = `Showing ${visibleCount.toLocaleString()} / ${industriesData.length.toLocaleString()} · ${sl(activeSector)}`;
+  }
+
+  // Clear current selection if it's in a hidden sector
+  if(currentCode){
+    const curInd = indByCode.get(currentCode);
+    if(curInd && activeSector !== 'all' && curInd.Sector !== activeSector){
+      clearHighlight();
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // DATA LOADING  (with master-file fallback)
 // ══════════════════════════════════════════════════════════════════════════════
 function processIndustries(data){
-  indByCode   = new Map();
-  linksByCode = new Map();
+  indByCode      = new Map();
+  linksByCode    = new Map();
   industriesData = data;
   industriesData.forEach(ind => {
     registerIndustry(ind);
@@ -163,7 +219,7 @@ async function loadData(){
     return;
   }
 
-  // ── Step 1: try loading chunked industry + link files in parallel ────────
+  // ── Step 1: try chunked files ────────────────────────────────────────────
   let industriesLoaded = false;
   try {
     const iFiles = manifest.industryFiles.map(f => 'data/' + f);
@@ -180,15 +236,13 @@ async function loadData(){
     console.warn('⚠️ Chunked industry files failed, trying master file fallback…', e);
   }
 
-  // ── Step 2: fallback to industries_master.json if chunked load failed ─────
+  // ── Step 2: fallback to industries_master.json ───────────────────────────
   if(!industriesLoaded && manifest.masterFile){
     try {
       statsEl.textContent = 'Chunked load failed – trying master file…';
       const masterData = await axios.get('data/' + manifest.masterFile).then(r => r.data);
       processIndustries(masterData);
       console.log(`✅ Loaded ${industriesData.length} industries from master file fallback.`);
-
-      // Still try to load links even if industries came from master
       try {
         const lFiles = manifest.linkFiles.map(f => 'data/' + f);
         const lRes   = await Promise.all(lFiles.map(f => axios.get(f).then(r => r.data)));
@@ -285,7 +339,8 @@ function buildSpiderweb(){
     resultsDiv.innerHTML = '';
     if(!q){ resultsDiv.style.display='none'; return; }
     const matches = industriesData
-      .filter(i => i._searchBlob && i._searchBlob.includes(q))
+      .filter(i => i._searchBlob && i._searchBlob.includes(q)
+        && (activeSector === 'all' || i.Sector === activeSector))
       .slice(0,25);
     if(!matches.length){ resultsDiv.style.display='none'; return; }
     matches.forEach(item=>{
@@ -314,6 +369,9 @@ function buildSpiderweb(){
   document.getElementById('resetBtn').onclick = () => {
     searchBox.value = '';
     resultsDiv.style.display = 'none';
+    // Reset sector filter too
+    document.getElementById('filterSector').value = 'all';
+    applySectorFilter();
     clearHighlight();
     networkInstance.fit({ animation:{ duration:600, easingFunction:'easeInOutQuad' } });
   };
@@ -455,10 +513,10 @@ function renderSidebar(code){
       `<span class="toggle-btn" onclick="toggleCollapse('ctext_${code}',this)">▼ Show more</span></div>`
     : '<span class="empty-val">—</span>';
 
-  const orbis = val(ind.OrbisBoolean);
+  const orbis    = val(ind.OrbisBoolean);
   const orbisHtml = orbis ? `<div class="orbis-box">${esc(orbis)}</div>` : '<span class="empty-val">—</span>';
 
-  const ta = val(ind.TradeAssociations);
+  const ta    = val(ind.TradeAssociations);
   const taHtml = ta ? esc(ta) : '<span class="empty-val">—</span>';
 
   function connItem(l){
@@ -477,7 +535,7 @@ function renderSidebar(code){
 
   document.getElementById('infoBox').innerHTML = `
     <span class="d-repcode">${esc(ind.RepCode)}</span>
-    <div class="d-title">${esc(val(ind.NameEnglish, ind.RepCode))}</div>
+    <div class="d-title">${esc(val(ind.NameEnglish,ind.RepCode))}</div>
     <div class="d-native">${esc(val(ind.NameNative,''))}</div>
     <div class="d-badges">
       <span class="sector-pill" style="background:${c}22;color:${c};border:1px solid ${c}55">${sl(ind.Sector)}</span>
@@ -532,7 +590,7 @@ function toggleDrawMode(forceOff){
   drawMode = forceOff === false ? false : !drawMode;
   drawFrom = null;
   const btn = document.getElementById('drawBtn');
-  btn.textContent      = drawMode ? '✔ Drawing…' : '✏ Add Connection';
+  btn.textContent       = drawMode ? '✔ Drawing…' : '✏ Add Connection';
   btn.style.borderColor = drawMode ? '#3fb950' : '';
   btn.style.color       = drawMode ? '#3fb950' : '';
   if(drawMode){
@@ -626,7 +684,7 @@ function drawIotSpiderweb(){
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  if(!W || !H) return;
+  if(!W||!H) return;
   ctx.clearRect(0,0,W,H);
 
   const sectors = getSectors();
@@ -674,9 +732,9 @@ function drawIotSpiderweb(){
 
   sectors.forEach(s => {
     const p = pos[s];
-    const isSel = iotSelected===s, isHov = iotHovered===s, isDim = iotSelected&&!isSel;
-    const color = iotColor(s);
-    const radius = isSel ? 28 : isHov ? 24 : 18;
+    const isSel=iotSelected===s, isHov=iotHovered===s, isDim=iotSelected&&!isSel;
+    const color=iotColor(s);
+    const radius=isSel?28:isHov?24:18;
     ctx.save();
     ctx.globalAlpha = isDim ? 0.3 : 1.0;
     if(isSel){ ctx.shadowColor=color; ctx.shadowBlur=22; }
@@ -729,7 +787,7 @@ function getIotSectorAtXY(mx,my){
 }
 
 function selectIotSector(s){
-  iotSelected = (s===iotSelected) ? null : s;
+  iotSelected=(s===iotSelected)?null:s;
   highlightGvaList(iotSelected);
   drawIotSpiderweb();
 }
@@ -740,28 +798,26 @@ function setupIotCanvasEvents(){
   if(!canvas) return;
   canvas.addEventListener('mousemove', e => {
     if(!iotLoaded) return;
-    const rect = canvas.getBoundingClientRect();
-    const hit  = getIotSectorAtXY(e.clientX-rect.left, e.clientY-rect.top);
-    iotHovered = hit;
+    const rect=canvas.getBoundingClientRect();
+    const hit =getIotSectorAtXY(e.clientX-rect.left, e.clientY-rect.top);
+    iotHovered=hit;
     if(hit){
-      const topOut = iotSectorLinks.filter(l=>l.source===hit).sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
-      const topIn  = iotSectorLinks.filter(l=>l.target===hit).sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
-      const totalOut = topOut.reduce((s,l)=>s+(l.value_bn||0),0);
-      const totalIn  = topIn.reduce((s,l)=>s+(l.value_bn||0),0);
-      let txt = `${hit}\nTotal output: ${fmtBn(totalOut)}\nTotal input: ${fmtBn(totalIn)}`;
-      if(topOut.length) txt += `\n▶ Sells to: `+topOut.map(l=>`${l.target} (${fmtBn(l.value_bn)})`).join(', ');
-      if(topIn.length)  txt += `\n◀ Buys from: `+topIn.map(l=>`${l.source} (${fmtBn(l.value_bn)})`).join(', ');
-      tooltip.innerText = txt;
-      tooltip.style.display = 'block';
-      tooltip.style.left = Math.min(e.clientX-rect.left+16, canvas.width-280)+'px';
-      tooltip.style.top  = Math.max(e.clientY-rect.top-10, 8)+'px';
-    } else {
-      tooltip.style.display='none';
-    }
+      const topOut=iotSectorLinks.filter(l=>l.source===hit).sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
+      const topIn =iotSectorLinks.filter(l=>l.target===hit).sort((a,b)=>(b.value_bn||0)-(a.value_bn||0)).slice(0,3);
+      const totalOut=topOut.reduce((s,l)=>s+(l.value_bn||0),0);
+      const totalIn =topIn.reduce((s,l)=>s+(l.value_bn||0),0);
+      let txt=`${hit}\nTotal output: ${fmtBn(totalOut)}\nTotal input: ${fmtBn(totalIn)}`;
+      if(topOut.length) txt+=`\n▶ Sells to: `+topOut.map(l=>`${l.target} (${fmtBn(l.value_bn)})`).join(', ');
+      if(topIn.length)  txt+=`\n◀ Buys from: `+topIn.map(l=>`${l.source} (${fmtBn(l.value_bn)})`).join(', ');
+      tooltip.innerText=txt;
+      tooltip.style.display='block';
+      tooltip.style.left=Math.min(e.clientX-rect.left+16, canvas.width-280)+'px';
+      tooltip.style.top =Math.max(e.clientY-rect.top-10, 8)+'px';
+    } else { tooltip.style.display='none'; }
     drawIotSpiderweb();
   });
-  canvas.addEventListener('mouseleave', ()=>{ iotHovered=null; tooltip.style.display='none'; drawIotSpiderweb(); });
-  canvas.addEventListener('click', e=>{
+  canvas.addEventListener('mouseleave',()=>{ iotHovered=null; tooltip.style.display='none'; drawIotSpiderweb(); });
+  canvas.addEventListener('click',e=>{
     if(!iotLoaded) return;
     const rect=canvas.getBoundingClientRect();
     selectIotSector(getIotSectorAtXY(e.clientX-rect.left, e.clientY-rect.top));
@@ -770,11 +826,11 @@ function setupIotCanvasEvents(){
 
 // ── GVA sidebar ───────────────────────────────────────────────────────────────
 function buildGvaList(){
-  const list   = document.getElementById('gvaList');
-  const maxGva = iotGva[0]?.gva_bn || 1;
-  list.innerHTML = iotGva.map((item,i) => {
-    const c   = iotColor(item.sector);
-    const pct = (item.gva_bn/maxGva*100).toFixed(1);
+  const list  =document.getElementById('gvaList');
+  const maxGva=iotGva[0]?.gva_bn||1;
+  list.innerHTML=iotGva.map((item,i)=>{
+    const c  =iotColor(item.sector);
+    const pct=(item.gva_bn/maxGva*100).toFixed(1);
     return `<div class="gva-item" id="gva_${i}" onclick="selectIotSector('${item.sector}')">
       <div class="gva-dot" style="background:${c}"></div>
       <span class="gva-name">${esc(item.sector)}</span>
@@ -785,21 +841,21 @@ function buildGvaList(){
 }
 
 function highlightGvaList(sel){
-  document.querySelectorAll('.gva-item').forEach(el => {
-    el.style.opacity = sel ? (el.onclick?.toString().includes(sel) ? '1' : '0.35') : '1';
+  document.querySelectorAll('.gva-item').forEach(el=>{
+    el.style.opacity=sel?(el.onclick?.toString().includes(sel)?'1':'0.35'):'1';
   });
 }
 
 function buildIotLegend(){
-  const leg = document.getElementById('iotLegend');
-  const rows = Object.entries(IOT_SECTOR_COLORS).map(([s,c])=>
+  const leg=document.getElementById('iotLegend');
+  const rows=Object.entries(IOT_SECTOR_COLORS).map(([s,c])=>
     `<div class="iot-leg-row"><div class="iot-leg-dot" style="background:${c}"></div><span>${esc(s)}</span></div>`
   ).join('');
-  leg.innerHTML = `<h3>Macro Sector</h3>${rows}`;
+  leg.innerHTML=`<h3>Macro Sector</h3>${rows}`;
 }
 
 // ── label helper ──────────────────────────────────────────────────────────────
-function wrapLabel(name, max=18){
+function wrapLabel(name,max=18){
   const words=String(name).split(' ');
   const lines=[]; let line='';
   words.forEach(w=>{

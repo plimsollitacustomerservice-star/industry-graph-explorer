@@ -67,7 +67,12 @@
       padding:3px 6px; border-radius:4px;
       background:#21262d; border:1px solid #30363d; color:#e6edf3; font-size:12px;
     }
+    #filterSector { min-width:130px; }
     #currentIndustry { margin-left:auto; font-weight:700; color:#58a6ff; font-size:12px; }
+    #sectorFilterLabel {
+      font-size:10px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.08em; color:#8b949e;
+    }
 
     /* ── MAIN LAYOUT ── */
     #main { display:flex; height:calc(100vh - 80px); overflow:hidden; }
@@ -276,6 +281,22 @@
       <option value="3">3+</option>
       <option value="4">4+</option>
       <option value="5">5 only</option>
+    </select>
+  </label>
+  <label><span id="sectorFilterLabel">Sector:</span>
+    <select id="filterSector" onchange="applySectorFilter()">
+      <option value="all">All sectors</option>
+      <option value="AGR">🌾 Agriculture &amp; Food</option>
+      <option value="CON">🏗 Construction</option>
+      <option value="EDU">🎓 Education</option>
+      <option value="ENE">⚡ Energy</option>
+      <option value="FIN">💰 Finance</option>
+      <option value="HEA">🏥 Healthcare</option>
+      <option value="ICT">💻 ICT / Tech</option>
+      <option value="MAN">🏭 Manufacturing</option>
+      <option value="RET">🛒 Retail</option>
+      <option value="SER">🔧 Services</option>
+      <option value="WHL">📦 Wholesale</option>
     </select>
   </label>
   <span id="currentIndustry"></span>
