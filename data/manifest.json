@@ -24,6 +24,12 @@
     "links_3.json",
     "links_4.json"
   ],
+  "masterFile": "industries_master.json",
+  "masterFileDescription": "Single flat JSON array of all 5862 industries. Use as fallback if chunked sector files fail to load, or for bulk export/search.",
   "totalIndustries": 5862,
-  "totalLinks": 12000
+  "totalLinks": 12000,
+  "lastUpdated": "2026-03-13",
+  "dataSource": "Plimsoll Italia Industry Definitions Database",
+  "geography": "Italy (primary), European markets (secondary)",
+  "classificationSystems": ["ATECO", "NACE", "SIC"]
 }
