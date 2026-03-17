@@ -64,6 +64,10 @@
     #starredCount { font-size:11px; color:#e5c07b; white-space:nowrap; min-width:28px; }
     #statsLabel { font-size:11px; color:#8b949e; white-space:nowrap; }
 
+    /* Mobile sidebar toggle — hidden on desktop */
+    #sidebarToggle { display:none; border-color:#58a6ff; color:#58a6ff; }
+    #sidebarToggle:hover { background:#58a6ff22; }
+
     /* ── FILTER BAR ── */
     #filterbar {
       flex-shrink:0;
@@ -81,19 +85,27 @@
 
     /* ── MAIN LAYOUT ──
        flex:1 + min-height:0 so it fills remaining space exactly */
-    #main { display:flex; flex:1; min-height:0; overflow:hidden; }
+    #main { display:flex; flex:1; min-height:0; overflow:hidden; position:relative; }
 
     /* ── SIDEBAR ── */
     #sidebar {
       width:330px; min-width:260px; flex-shrink:0;
       background:#161b22; border-right:1px solid #30363d;
       display:flex; flex-direction:column; overflow:hidden;
+      transition: transform .25s ease;
     }
     #sidebarHeader {
       flex-shrink:0;
       padding:10px 14px; background:#21262d;
       border-bottom:1px solid #30363d; font-size:13px; font-weight:700; color:#58a6ff;
+      display:flex; align-items:center; justify-content:space-between;
     }
+    /* Close button inside sidebar header — mobile only */
+    #sidebarClose {
+      display:none; background:none; border:none; color:#8b949e;
+      font-size:18px; cursor:pointer; line-height:1; padding:0 2px;
+    }
+    #sidebarClose:hover { color:#e6edf3; }
     #infoBox { padding:14px; overflow-y:auto; flex:1; font-size:13px; }
     #emptyMsg { color:#484f58; font-style:italic; text-align:center; padding:30px 0; }
 
@@ -259,6 +271,54 @@
     #iotLegend h3 { margin:0 0 7px; font-size:11px; color:#f0883e; text-transform:uppercase; letter-spacing:.08em; }
     .iot-leg-row { display:flex; align-items:center; gap:7px; margin:3px 0; color:#8b949e; }
     .iot-leg-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+
+    /* ════════════════════════════════════
+       RESPONSIVE — screens ≤ 768px
+       Sidebar becomes a slide-in overlay.
+       Toggle button appears in topbar.
+       Some topbar buttons are hidden to
+       keep the bar usable on small screens.
+    ════════════════════════════════════ */
+    @media (max-width: 768px) {
+      /* Show mobile toggle button */
+      #sidebarToggle { display:inline-flex; }
+      /* Show close button inside sidebar */
+      #sidebarClose  { display:block; }
+
+      /* Hide lower-priority topbar items on narrow screens */
+      #drawBtn, #physicsBtn, #iotBtn, #statsLabel,
+      #navBack, #navFwd, #starredCount { display:none; }
+
+      /* Sidebar: pull it off-screen to the left by default */
+      #sidebar {
+        position:absolute; top:0; left:0; bottom:0;
+        z-index:300;
+        transform: translateX(-100%);
+        width: min(330px, 88vw);
+        box-shadow: 4px 0 24px rgba(0,0,0,.6);
+      }
+      /* When toggled open, slide in */
+      #sidebar.sidebar-open {
+        transform: translateX(0);
+      }
+      /* Semi-transparent backdrop behind the open sidebar */
+      #sidebarBackdrop {
+        display:none;
+        position:absolute; inset:0;
+        background:rgba(0,0,0,.5);
+        z-index:299;
+      }
+      #sidebar.sidebar-open ~ #sidebarBackdrop,
+      body.sidebar-open #sidebarBackdrop { display:block; }
+
+      /* Topbar: wrap to two lines on very small screens */
+      #topbar { flex-wrap:wrap; gap:6px; padding:7px 10px; }
+      #topbar h1 { font-size:13px; }
+      #searchWrap { order:10; flex:1 1 100%; max-width:100%; }
+
+      /* Legend: smaller and repositioned so it doesn't cover touch targets */
+      #legend { bottom:8px; right:8px; padding:7px 10px; font-size:10px; }
+    }
   </style>
 </head>
 <body>
@@ -266,14 +326,16 @@
 <!-- TOP BAR -->
 <div id="topbar">
   <h1>🕸 Industry Graph Explorer</h1>
+  <!-- Mobile sidebar toggle (hidden on desktop) -->
+  <button class="tb-btn" id="sidebarToggle" title="Show industry details">☰ Details</button>
   <div id="searchWrap">
     <input id="searchBox" type="text" placeholder="Search industry, code, ATECO, keyword…" autocomplete="off" spellcheck="false" />
     <div id="results"></div>
   </div>
-  <!-- Back / Forward navigation buttons (#5) -->
+  <!-- Back / Forward navigation buttons -->
   <button class="tb-btn" id="navBack" title="Go back (Alt+←)" disabled>◀</button>
   <button class="tb-btn" id="navFwd"  title="Go forward (Alt+→)" disabled>▶</button>
-  <!-- Starred count badge (#7) -->
+  <!-- Starred count badge -->
   <span id="starredCount" title="Starred industries"></span>
   <button class="tb-btn" id="drawBtn"    onclick="toggleDrawMode()">✏ Add Connection</button>
   <button class="tb-btn" id="physicsBtn" onclick="togglePhysics()">⏸ Physics ON</button>
@@ -326,11 +388,17 @@
 
   <!-- GRAPH SIDEBAR -->
   <div id="sidebar">
-    <div id="sidebarHeader">📋 Industry Details</div>
+    <div id="sidebarHeader">
+      📋 Industry Details
+      <button id="sidebarClose" title="Close panel">✕</button>
+    </div>
     <div id="infoBox">
       <div id="emptyMsg">Search or click a node to explore.</div>
     </div>
   </div>
+
+  <!-- Backdrop for mobile sidebar overlay -->
+  <div id="sidebarBackdrop"></div>
 
   <!-- VIS NETWORK -->
   <div id="network">
@@ -373,10 +441,42 @@
 <div id="ctxMenu"></div>
 
 <script src="app.js"></script>
+
+<!-- ── MOBILE SIDEBAR TOGGLE ── -->
+<script>
+  (function () {
+    const sidebar   = document.getElementById('sidebar');
+    const backdrop  = document.getElementById('sidebarBackdrop');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const closeBtn  = document.getElementById('sidebarClose');
+
+    function openSidebar()  { sidebar.classList.add('sidebar-open');    backdrop.style.display = 'block'; }
+    function closeSidebar() { sidebar.classList.remove('sidebar-open'); backdrop.style.display = 'none';  }
+    function isMobile()     { return window.innerWidth <= 768; }
+
+    if (toggleBtn) toggleBtn.addEventListener('click', () => {
+      sidebar.classList.contains('sidebar-open') ? closeSidebar() : openSidebar();
+    });
+    if (closeBtn)  closeBtn.addEventListener('click', closeSidebar);
+    if (backdrop)  backdrop.addEventListener('click', closeSidebar);
+
+    // Auto-open sidebar on mobile when a node is clicked and content is loaded
+    const infoBox = document.getElementById('infoBox');
+    if (infoBox) {
+      const observer = new MutationObserver(() => {
+        if (isMobile() && infoBox.children.length > 0 &&
+            !infoBox.querySelector('#emptyMsg')) {
+          openSidebar();
+        }
+      });
+      observer.observe(infoBox, { childList: true, subtree: false });
+    }
+  })();
+</script>
+
 <!-- Physics ON by default so nodes spread out on first load -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Wait for buildSpiderweb() to finish then enable physics for initial layout
     const waitForNetwork = setInterval(() => {
       if (typeof networkInstance !== 'undefined' && networkInstance) {
         clearInterval(waitForNetwork);
