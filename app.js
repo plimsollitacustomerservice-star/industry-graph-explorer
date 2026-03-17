@@ -15,6 +15,9 @@
 //  12.  Inline annotation notes (localStorage)
 //  13.  "Focus" button in sidebar re-centres graph on current node
 //  14.  Search dropdown initialised at DOM-ready (not inside buildSpiderweb)
+// Patches:
+//  FIX-A. Priority badge reads CommercialPriority (falls back to Priority)
+//  FIX-B. Definition prefers MarketingDefinitionEN over status-word fields
 // ══════════════════════════════════════════════════════════════════════════════
 
 'use strict';
@@ -404,7 +407,6 @@ function initSearch(){
           navigateTo(m[_searchResultIdx].RepCode);
         }
       } else {
-        // Enter with no arrow selection — pick first match
         const m = resultsDiv._matches || [];
         if(m[0]){
           e.preventDefault();
@@ -424,13 +426,11 @@ function initSearch(){
     if(items[_searchResultIdx]) items[_searchResultIdx].scrollIntoView({block:'nearest'});
   }
 
-  // Close dropdown when clicking outside
   document.addEventListener('click', e => {
     if(!document.getElementById('searchWrap').contains(e.target))
       resultsDiv.style.display='none';
   });
 
-  // '/' shortcut to focus search
   document.addEventListener('keydown', e => {
     if(e.key==='/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'){
       e.preventDefault();
@@ -477,10 +477,8 @@ function buildSpiderweb(){
   });
   document.getElementById('emptyState').style.display='none';
 
-  // ── #11 Sidebar resize handle ─────────────────────────────────────────────
   _initSidebarResize();
 
-  // Reset button
   const searchBox  = document.getElementById('searchBox');
   const resultsDiv = document.getElementById('results');
   document.getElementById('resetBtn').onclick = () => {
@@ -493,7 +491,6 @@ function buildSpiderweb(){
     networkInstance.fit({ animation:{ duration:600, easingFunction:'easeInOutQuad' } });
   };
 
-  // Nav back/fwd buttons
   const navBack = document.getElementById('navBack');
   const navFwd  = document.getElementById('navFwd');
   if(navBack) navBack.onclick = historyBack;
@@ -503,7 +500,6 @@ function buildSpiderweb(){
   document.getElementById('filterDir').onchange = () => renderSidebar(currentCode);
   document.getElementById('filterStr').onchange = () => renderSidebar(currentCode);
 
-  // Node click → ego highlight + navigate
   networkInstance.on('click', params => {
     if(drawMode && drawFrom && params.nodes.length > 0){
       const toCode = params.nodes[0];
@@ -638,12 +634,18 @@ function renderSidebar(code){
   const downstream = links.filter(l=>l.Direction==='Downstream');
 
   const c  = sc(ind.Sector);
-  const pv = val(ind.Priority,'').toLowerCase();
+
+  // ✏ FIX-A: Read CommercialPriority first, fall back to Priority field.
+  // Strips non-alpha chars so timestamps/dates never accidentally match.
+  const _pvRaw = val(ind.CommercialPriority, val(ind.Priority,''));
+  const pv = _pvRaw.toLowerCase().replace(/[^a-z]/g,'');
   const priBadge = pv==='high'
     ? `<span class="priority-badge priority-high">High</span>`
     : pv==='medium'||pv==='med'
     ? `<span class="priority-badge priority-med">Medium</span>`
-    : pv ? `<span class="priority-badge priority-low">${esc(val(ind.Priority))}</span>` : '';
+    : pv==='low'
+    ? `<span class="priority-badge priority-low">Low</span>` : '';
+
   const vcs = val(ind.ValueChainStage);
   const vcsBadge = vcs ? `<span class="status-badge">${esc(vcs)}</span>` : '';
 
@@ -657,7 +659,13 @@ function renderSidebar(code){
   const kwIT = val(ind.KeywordsIncludeIT).split(/[,;]/).map(s=>s.trim()).filter(Boolean);
   const kwHtml = [...kwEN,...kwIT].map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('') || '<span class="empty-val">—</span>';
 
-  const defEN = val(ind.ReportDefinitionEN) || val(ind.MarketingDefinitionEN);
+  // ✏ FIX-B: Prefer MarketingDefinitionEN; only fall back to ReportDefinitionEN
+  // if it contains a real description (not a status word like "Completed").
+  const _STATUS_WORD = /^(completed|pending|in progress|done|none|n\/a|yes|no)$/i;
+  const _reportDef = val(ind.ReportDefinitionEN);
+  const _marketDef = val(ind.MarketingDefinitionEN);
+  const defEN = (!_reportDef || _STATUS_WORD.test(_reportDef.trim())) ? _marketDef : _reportDef;
+
   const defHtml = defEN
     ? `<div class="collapsible-wrap"><div class="ctext collapsed" id="ctext_${code}">${esc(defEN)}</div>`+
       `<span class="toggle-btn" onclick="toggleCollapse('ctext_${code}',this)">▼ Show more</span></div>`
