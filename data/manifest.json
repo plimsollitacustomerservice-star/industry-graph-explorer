@@ -1,35 +1,7 @@
 {
-  "industryFiles": [
-    "industries_AGR.json",
-    "industries_CON.json",
-    "industries_EDU.json",
-    "industries_ENE.json",
-    "industries_FIN.json",
-    "industries_HEA.json",
-    "industries_ICT.json",
-    "industries_MAN_1.json",
-    "industries_MAN_2.json",
-    "industries_RET.json",
-    "industries_SER_1.json",
-    "industries_SER_2.json",
-    "industries_SER_3.json",
-    "industries_SER_4.json",
-    "industries_SER_5.json",
-    "industries_SER_6.json",
-    "industries_WHL.json"
-  ],
-  "linkFiles": [
-    "links_1.json",
-    "links_2.json",
-    "links_3.json",
-    "links_4.json"
-  ],
-  "masterFile": "industries_master.json",
-  "masterFileDescription": "Single flat JSON array of all 5862 industries. Use as fallback if chunked sector files fail to load, or for bulk export/search.",
-  "totalIndustries": 5862,
-  "totalLinks": 12000,
-  "lastUpdated": "2026-03-13",
-  "dataSource": "Plimsoll Italia Industry Definitions Database",
-  "geography": "Italy (primary), European markets (secondary)",
-  "classificationSystems": ["ATECO", "NACE", "SIC"]
+  "industryFiles": [],
+  "linkFiles": [],
+  "totalIndustries": 0,
+  "totalLinks": 0,
+  "enrichmentNote": "ATECO, keywords and adjacency extracted from definition text"
 }
