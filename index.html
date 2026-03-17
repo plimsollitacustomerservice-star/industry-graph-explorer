@@ -4,8 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Industry Graph Explorer – Plimsoll Italia</title>
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <!-- CDN versions pinned to avoid silent breaking updates -->
+  <script src="https://unpkg.com/axios@1.6.8/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     html, body { height:100%; overflow:hidden; }
@@ -47,6 +48,7 @@
       cursor:pointer; white-space:nowrap; transition:background .15s,border-color .15s;
     }
     .tb-btn:hover { background:#30363d; border-color:#58a6ff; }
+    .tb-btn:disabled { opacity:0.35; cursor:default; pointer-events:none; }
     #resetBtn   { border-color:#f85149; color:#f85149; }
     #resetBtn:hover  { background:#f8514922; }
     #drawBtn    { border-color:#3fb950; color:#3fb950; }
@@ -57,6 +59,9 @@
     #iotBtn:hover    { background:#f0883e22; }
     #themeBtn   { border-color:#e5c07b; color:#e5c07b; }
     #themeBtn:hover  { background:#e5c07b22; }
+    #navBack, #navFwd { border-color:#8b949e; color:#8b949e; padding:6px 9px; font-size:13px; }
+    #navBack:hover, #navFwd:hover { border-color:#c9d1d9; color:#c9d1d9; }
+    #starredCount { font-size:11px; color:#e5c07b; white-space:nowrap; min-width:28px; }
     #statsLabel { font-size:11px; color:#8b949e; white-space:nowrap; }
 
     /* ── FILTER BAR ── */
@@ -265,8 +270,13 @@
     <input id="searchBox" type="text" placeholder="Search industry, code, ATECO, keyword…" autocomplete="off" spellcheck="false" />
     <div id="results"></div>
   </div>
+  <!-- Back / Forward navigation buttons (#5) -->
+  <button class="tb-btn" id="navBack" title="Go back (Alt+←)" disabled>◀</button>
+  <button class="tb-btn" id="navFwd"  title="Go forward (Alt+→)" disabled>▶</button>
+  <!-- Starred count badge (#7) -->
+  <span id="starredCount" title="Starred industries"></span>
   <button class="tb-btn" id="drawBtn"    onclick="toggleDrawMode()">✏ Add Connection</button>
-  <button class="tb-btn" id="physicsBtn" onclick="togglePhysics()">▶ Physics OFF</button>
+  <button class="tb-btn" id="physicsBtn" onclick="togglePhysics()">⏸ Physics ON</button>
   <button class="tb-btn" id="resetBtn">↺ Reset</button>
   <button class="tb-btn" id="iotBtn"     onclick="toggleIotView()">🌐 IOT Spiderweb</button>
   <button class="tb-btn" id="themeBtn"   onclick="toggleTheme()">☀ Light</button>
@@ -363,5 +373,24 @@
 <div id="ctxMenu"></div>
 
 <script src="app.js"></script>
+<!-- Physics ON by default so nodes spread out on first load -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Wait for buildSpiderweb() to finish then enable physics for initial layout
+    const waitForNetwork = setInterval(() => {
+      if (typeof networkInstance !== 'undefined' && networkInstance) {
+        clearInterval(waitForNetwork);
+        networkInstance.setOptions({ physics: { enabled: true, stabilization: { iterations: 300 } } });
+        _physicsOn = true;
+        networkInstance.once('stabilizationIterationsDone', () => {
+          networkInstance.setOptions({ physics: { enabled: false } });
+          _physicsOn = false;
+          const btn = document.getElementById('physicsBtn');
+          if (btn) btn.textContent = '▶ Physics OFF';
+        });
+      }
+    }, 200);
+  });
+</script>
 </body>
 </html>
